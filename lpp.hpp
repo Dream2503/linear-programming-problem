@@ -1,9 +1,21 @@
 #pragma once
-#include <iostream>
+#include <assert.h>
 #include <cmath>
-#include <vector>
+#include <iostream>
 #include <ranges>
+#include <vector>
 
-#include "variable.hpp"
-#include "polynomial.hpp"
-#include "inequation.hpp"
+namespace lpp {
+    enum class OptimizeType { MAXIMIZE, MINIMIZE };
+
+    class Variable;
+    class Polynomial;
+    class Inequation;
+    class Equation;
+    class LPP;
+
+    double optimize(LPP);
+} // namespace lpp
+
+#include "types.hpp"
+#include "simplex.hpp"
