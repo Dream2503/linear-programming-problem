@@ -5,14 +5,14 @@ using namespace lpp;
 int main() {
     const Variable x("x"), y("y");
 
-    LPP lpp(Optimization::MAXIMIZE, 2 * x + 3 * y,
+    LPP lpp(Optimization::MAXIMIZE, 3 * x + 2 * y,
             {
-                5 * x - 4 * y <= 7,
-                9 * x + 4 * y <= 9,
                 x + y <= 4,
+                x - y <= 2,
             });
     std::cout << lpp;
-    const auto [bv, c, b, coefficient_matrix, mr] = lpp.prepare_computational_table();
+    lpp = lpp.standardize();
+    const auto [bv, c, coefficient_matrix] = lpp.prepare_computational_table();
     std::cout << "BV: ";
 
     for (const Variable& variable : bv) {
@@ -33,5 +33,6 @@ int main() {
         }
         std::cout << std::endl;
     }
-    std::cout << std::endl << lpp;
+    std::cout << std::endl << lpp << std::endl;
+    lpp.compute({bv, c, coefficient_matrix});
 }
