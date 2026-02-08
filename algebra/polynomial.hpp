@@ -53,4 +53,5 @@ public:
 };
 
 inline lpp::Polynomial operator+(const lpp::Variable& lhs, const lpp::Variable& rhs) { return lpp::Polynomial(std::vector{lhs, rhs}); }
+
 inline lpp::Polynomial operator-(const lpp::Variable& lhs, const lpp::Variable& rhs) { return lpp::Polynomial(std::vector{lhs, -rhs}); }

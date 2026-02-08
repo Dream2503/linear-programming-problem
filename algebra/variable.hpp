@@ -7,6 +7,7 @@ public:
     Fraction coefficient = 1, exponent = 1;
 
     Variable(const std::string& name) : name(name) {}
+
     Variable(const Fraction value) : name(CONSTANT), coefficient(value) {}
 
     Variable operator-() const {

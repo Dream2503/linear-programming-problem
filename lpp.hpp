@@ -15,7 +15,6 @@ namespace lpp {
     class Inequation;
     class Equation;
     class LPP;
-
 } // namespace lpp
 
 #include "algebra/fraction.hpp"
