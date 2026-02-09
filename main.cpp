@@ -2,37 +2,38 @@
 
 using namespace lpp;
 
-int main() {
-    const Variable x("x"), y("y");
-
-    LPP lpp(Optimization::MAXIMIZE, 3 * x + 2 * y,
-            {
-                x + y <= 4,
-                x - y <= 2,
-            });
+void test(LPP&& lpp) {
     std::cout << lpp;
-    lpp = lpp.standardize();
-    const auto [bv, c, coefficient_matrix] = lpp.prepare_computational_table();
-    std::cout << "BV: ";
+    const std::map<Variable, Fraction> res = lpp.optimize();
 
-    for (const Variable& variable : bv) {
-        std::cout << variable << " ";
+    for (const auto& [variable, fraction] : res) {
+        std::cout << variable << '=' << fraction << " ";
     }
-    std::cout << std::endl << "C: ";
+    std::cout << std::endl << std::endl;
+}
 
-    for (const auto& [first, second] : c) {
-        std::cout << '(' << first << ',' << second << ')' << " ";
-    }
-    std::cout << std::endl << "Matrix: " << std::endl;
+int main() {
+    const Variable x("x"), y("y"), x1("x1"), x2("x2"), x3("x3");
 
-    for (const auto& [first, second] : coefficient_matrix) {
-        std::cout << first << ": ";
-
-        for (const Fraction fraction : second) {
-            std::cout << fraction << ' ';
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::endl << lpp << std::endl;
-    lpp.compute({bv, c, coefficient_matrix});
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
+             {
+                 x + y <= 4,
+                 x - y <= 2,
+             }));
+    test(LPP(Optimization::MAXIMIZE, x1 + x2 + 3 * x3,
+             {
+                 3 * x1 + 2 * x2 + x3 <= 3,
+                 2 * x1 + x2 + 2 * x3 <= 2,
+             }));
+    test(LPP(Optimization::MINIMIZE, x1 - 3 * x2 + 2 * x3,
+             {
+                 3 * x1 - x2 + 2 * x3 <= 7,
+                 -2 * x1 + 4 * x2 <= 12,
+                 -4 * x1 + 3 * x2 + 8 * x3 <= 10,
+             }));
+    test(LPP(Optimization::MAXIMIZE, 2 * x + y,
+             {
+                 x - y <= 10,
+                 2 * x - y <= 40,
+             }));
 }
