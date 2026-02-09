@@ -1,7 +1,7 @@
 #pragma once
 
 class lpp::Fraction {
-    void simplify() {
+    constexpr void simplify() {
         assert(denominator != 0);
 
         if (denominator < 0) {
@@ -20,9 +20,9 @@ class lpp::Fraction {
 public:
     int numerator = 0, denominator = 1;
 
-    Fraction(const int numerator = 0, const int denominator = 1) : numerator(numerator), denominator(denominator) { simplify(); }
+    constexpr Fraction(const int numerator = 0, const int denominator = 1) : numerator(numerator), denominator(denominator) { simplify(); }
 
-    Fraction(double value) {
+    constexpr Fraction(double value) {
         while (static_cast<int>(value) != value) {
             denominator *= 10;
             value *= 10;
@@ -31,77 +31,79 @@ public:
         simplify();
     }
 
-    Fraction operator-() const { return Fraction(-numerator, denominator); }
+    constexpr Fraction operator-() const { return Fraction(-numerator, denominator); }
 
-    Fraction& operator+=(const Fraction& value) {
+    constexpr Fraction& operator+=(const Fraction& value) {
         numerator = numerator * value.denominator + value.numerator * denominator;
         denominator *= value.denominator;
         simplify();
         return *this;
     }
 
-    Fraction operator+(const Fraction& value) const {
+    constexpr Fraction operator+(const Fraction& value) const {
         Fraction fraction = *this;
         fraction += value;
         return fraction;
     }
 
-    Fraction& operator-=(const Fraction& value) {
+    constexpr Fraction& operator-=(const Fraction& value) {
         *this += -value;
         return *this;
     }
 
-    Fraction operator-(const Fraction& value) const {
+    constexpr Fraction operator-(const Fraction& value) const {
         Fraction fraction = *this;
         fraction -= value;
         return fraction;
     }
 
-    Fraction& operator*=(const Fraction& value) {
+    constexpr Fraction& operator*=(const Fraction& value) {
         numerator *= value.numerator;
         denominator *= value.denominator;
         simplify();
         return *this;
     }
 
-    Fraction operator*(const Fraction& value) const {
+    constexpr Fraction operator*(const Fraction& value) const {
         Fraction fraction = *this;
         fraction *= value;
         return fraction;
     }
 
-    Fraction& operator/=(const Fraction& value) {
+    constexpr Fraction& operator/=(const Fraction& value) {
         numerator *= value.denominator;
         denominator *= value.numerator;
         simplify();
         return *this;
     }
 
-    Fraction operator/(const Fraction& value) const {
+    constexpr Fraction operator/(const Fraction& value) const {
         Fraction fraction = *this;
         fraction /= value;
         return fraction;
     }
 
-    Fraction& operator^=(const Fraction& value) {
+    constexpr Fraction& operator^=(const Fraction& value) {
         const double exponent = static_cast<double>(value);
         *this = Fraction(std::pow(numerator, exponent)) / Fraction(std::pow(denominator, exponent));
         return *this;
     }
 
-    Fraction operator^(const Fraction& value) const {
+    constexpr Fraction operator^(const Fraction& value) const {
         Fraction fraction = *this;
         fraction ^= value;
         return fraction;
     }
 
-    std::strong_ordering operator<=>(const Fraction& value) const { return numerator * value.denominator <=> value.numerator * denominator; }
-    std::partial_ordering operator<=>(const double value) const { return static_cast<double>(*this) <=> value; }
+    constexpr std::strong_ordering operator<=>(const Fraction& value) const {
+        return numerator * value.denominator <=> value.numerator * denominator;
+    }
+    constexpr std::partial_ordering operator<=>(const double value) const { return static_cast<double>(*this) <=> value; }
 
-    bool operator==(const Fraction& value) const = default;
-    bool operator==(const double value) const { return static_cast<double>(*this) == value; };
+    constexpr bool operator==(const Fraction& value) const = default;
+    constexpr bool operator==(const double value) const { return static_cast<double>(*this) == value; };
 
-    explicit operator double() const { return static_cast<double>(numerator) / denominator; }
+    constexpr explicit operator double() const { return static_cast<double>(numerator) / denominator; }
 
     friend std::ostream& operator<<(std::ostream& out, const Fraction& fraction) {
         out << fraction.numerator;

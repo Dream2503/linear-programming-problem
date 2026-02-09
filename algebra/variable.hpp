@@ -6,28 +6,28 @@ public:
     std::string name;
     Fraction coefficient = 1, exponent = 1;
 
-    Variable(const std::string& name) : name(name) {}
+    constexpr Variable(const std::string& name) : name(name) {}
 
-    Variable(const Fraction value) : name(CONSTANT), coefficient(value) {}
+    constexpr Variable(const Fraction value) : name(CONSTANT), coefficient(value) {}
 
-    Variable operator-() const {
+    constexpr Variable operator-() const {
         Variable variable = *this;
         variable.coefficient = -variable.coefficient;
         return variable;
     }
 
-    Variable& operator*=(const Fraction& value) {
+    constexpr Variable& operator*=(const Fraction& value) {
         coefficient *= value;
         return *this;
     }
 
-    Variable operator*(const Fraction& value) const {
+    constexpr Variable operator*(const Fraction& value) const {
         Variable variable = *this;
         variable *= value;
         return variable;
     }
 
-    Variable& operator^=(const Fraction& value) {
+    constexpr Variable& operator^=(const Fraction& value) {
         coefficient ^= value;
 
         if (name != CONSTANT) {
@@ -36,13 +36,13 @@ public:
         return *this;
     }
 
-    Variable operator^(const Fraction& value) const {
+    constexpr Variable operator^(const Fraction& value) const {
         Variable variable = *this;
         variable ^= value;
         return variable;
     }
 
-    Variable& operator*=(const Variable& variable) {
+    constexpr Variable& operator*=(const Variable& variable) {
         if (name == CONSTANT) {
             name = variable.name;
             exponent = variable.exponent;
@@ -54,28 +54,28 @@ public:
         return *this;
     }
 
-    Variable operator*(const Variable& value) const {
+    constexpr Variable operator*(const Variable& value) const {
         Variable variable = *this;
         variable *= value;
         return variable;
     }
 
-    std::strong_ordering operator<=>(const Variable& other) const {
+    constexpr std::strong_ordering operator<=>(const Variable& other) const {
         return std::tie(name, exponent, coefficient) <=> std::tie(other.name, other.exponent, other.coefficient);
     }
 
-    bool operator==(const Variable&) const = default;
+    constexpr bool operator==(const Variable&) const = default;
 
-    Fraction substitute(const Fraction value) const { return name != CONSTANT ? coefficient * (value ^ exponent) : Fraction(); }
+    constexpr Fraction substitute(const Fraction value) const { return name != CONSTANT ? coefficient * (value ^ exponent) : Fraction(); }
 
-    Variable basis() const { return Variable(name); }
+    constexpr Variable basis() const { return Variable(name); }
 
-    explicit operator Fraction() const {
+    constexpr explicit operator Fraction() const {
         assert(name == CONSTANT);
         return coefficient;
     }
 
-    friend Variable operator*(const Fraction& value, const Variable& variable) { return variable * value; }
+    constexpr friend Variable operator*(const Fraction& value, const Variable& variable) { return variable * value; }
 
     friend std::ostream& operator<<(std::ostream& out, const Variable& variable) {
         if (variable.exponent == 0 || variable.name == CONSTANT) {
