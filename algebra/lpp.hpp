@@ -9,12 +9,15 @@ namespace lpp {
 
 class lpp::LPP {
 public:
+    static constexpr auto B = Variable("B");
     Optimization type;
     Polynomial objective;
     std::vector<Inequation> constraints;
 
     LPP(const Optimization type, const Polynomial& objective, std::initializer_list<Inequation>&& constraints) :
         type(type), objective(objective), constraints(constraints) {}
+
+    std::map<Variable, Fraction> optimize() { return compute(standardize().prepare_computational_table()); }
 
     friend std::ostream& operator<<(std::ostream& out, const LPP& lpp) {
         out << (lpp.type == Optimization::MAXIMIZE ? "Maximize" : "Minimize") << "   " << lpp.objective << std::endl;
@@ -26,6 +29,7 @@ public:
         return out;
     }
 
+private:
     LPP standardize() const {
         LPP lpp = *this;
         int i = 1;
@@ -62,13 +66,13 @@ public:
             for (const Variable& variable : constraint.lhs.expression) {
                 c.emplace(variable.basis(), 0);
             }
-            coefficient_matrix[Variable("B")].push_back(constraint.rhs);
+            coefficient_matrix[B].push_back(constraint.rhs);
         }
         for (const Variable& variable : c | std::views::keys) {
             coefficient_matrix.emplace(variable, std::vector<Fraction>());
         }
         for (const Inequation& constraint : constraints) {
-            for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::values) {
+            for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::drop(1) | std::views::values) { // B
                 fractions.push_back(0);
             }
             for (const Variable& variable : constraint.lhs.expression) {
@@ -89,52 +93,60 @@ public:
     }
 
     std::map<Variable, Fraction> compute(const std::tuple<BV, C, CoefficientMatrix>& table) const {
+        const int size = constraints.size();
         auto [bv, c, coefficient_matrix] = table;
-        std::vector<Fraction> zj_cj, mr;
+        std::map<Variable, Fraction> res;
+        std::vector unit_matrix(size, std::vector<Fraction>(size));
 
+        for (int i = 0; i < size; i++) {
+            unit_matrix[i][i] = 1;
+        }
         while (true) {
-            for (const Variable& variable : c | std::views::keys) {
-                Fraction res;
+            std::vector<Fraction> zj_cj, mr;
 
-                for (int i = 0; i < constraints.size(); i++) {
-                    res += c[bv[i]] * coefficient_matrix[variable][i];
+            for (const Variable& variable : c | std::views::keys) {
+                Fraction fraction;
+
+                for (int i = 0; i < size; i++) {
+                    fraction += c[bv[i]] * coefficient_matrix[variable][i];
                 }
-                zj_cj.push_back(res - c[variable]);
+                zj_cj.push_back(fraction - c[variable]);
             }
             if (std::ranges::all_of(zj_cj, [](const Fraction& fraction) -> bool { return fraction >= 0; })) {
                 break;
             }
             const auto entering_variable = std::next(coefficient_matrix.begin(), std::ranges::min_element(zj_cj) - zj_cj.begin() + 1); // B
 
-            for (int i = 0; i < constraints.size(); i++) {
-                mr.push_back(entering_variable->second[i] < 0 ? INT32_MAX : coefficient_matrix[Variable("B")][i] / entering_variable->second[i]);
+            for (int i = 0; i < size; i++) {
+                mr.push_back(entering_variable->second[i] < 0 ? INT32_MAX : coefficient_matrix[B][i] / entering_variable->second[i]);
             }
             const int leaving_variable = std::ranges::min_element(mr) - mr.begin();
             const std::pair pivot = {entering_variable->first, leaving_variable};
-            std::vector<Fraction> pivot_row;
-
-            for (const std::vector<Fraction>& fractions : coefficient_matrix | std::views::values) {
-                pivot_row.push_back(fractions[pivot.second]);
-            }
             bv.erase(bv.begin() + leaving_variable);
             bv.insert(bv.begin() + leaving_variable, entering_variable->first);
             CoefficientMatrix new_coefficient_matrix = coefficient_matrix;
 
-            // int i = 0;
-            // for (const Fraction& fraction : bv | std::views::values) {
-            //     if (i == pivot.second) {
-            //         new_bv_itr->second = _ / coefficient_matrix[pivot.first][pivot.second];
-            //     } else {
-            //         new_bv_itr->second = ((fraction * coefficient_matrix[pivot.first][pivot.second]) - (_ * coefficient_matrix[pivot.first][i])) /
-            //             coefficient_matrix[pivot.first][pivot.second];
-            //     }
-            //     ++new_bv_itr;
-            //     i++;
-            // }
-
+            for (int i = 0; i < size; i++) {
+                new_coefficient_matrix[bv[i]] = unit_matrix[i];
+            }
+            for (const Variable& variable : coefficient_matrix | std::views::keys |
+                     std::views::filter([&bv](const Variable& element) -> bool { return !std::ranges::contains(bv, element); })) {
+                for (int i = 0; i < size; i++) {
+                    if (i == pivot.second) {
+                        new_coefficient_matrix[variable][i] /= coefficient_matrix[pivot.first][pivot.second];
+                    } else {
+                        new_coefficient_matrix[variable][i] = (coefficient_matrix[variable][i] * coefficient_matrix[pivot.first][pivot.second] -
+                                                               coefficient_matrix[variable][pivot.second] * coefficient_matrix[pivot.first][i]) /
+                            coefficient_matrix[pivot.first][pivot.second];
+                    }
+                }
+            }
             coefficient_matrix.swap(new_coefficient_matrix);
-            break;
         }
-        return {};
+        for (const Variable& variable : objective.expression | std::views::transform([](const Variable& var) -> Variable { return var.basis(); })) {
+            const int idx = std::ranges::find(bv, variable) - bv.begin();
+            res[variable] = idx < size ? coefficient_matrix[B][idx] : 0;
+        }
+        return res;
     }
 };
