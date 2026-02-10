@@ -6,6 +6,8 @@ public:
     std::string name;
     Fraction coefficient = 1, exponent = 1;
 
+    constexpr Variable() = default;
+
     constexpr Variable(const std::string& name) : name(name) {}
 
     constexpr Variable(const Fraction value) : name(CONSTANT), coefficient(value) {}
@@ -70,8 +72,10 @@ public:
 
     constexpr Variable basis() const { return Variable(name); }
 
+    constexpr bool is_fraction() const { return name == CONSTANT; }
+
     constexpr explicit operator Fraction() const {
-        assert(name == CONSTANT);
+        assert(is_fraction());
         return coefficient;
     }
 

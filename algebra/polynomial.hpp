@@ -4,10 +4,14 @@ class lpp::Polynomial {
 public:
     std::vector<Variable> expression;
 
+    constexpr Polynomial() = default;
+
     Polynomial(const std::vector<Variable>& terms) : expression(terms) { std::ranges::sort(expression); }
 
     Polynomial& operator+=(const Variable& value) {
-        const auto itr = std::ranges::lower_bound(expression, value);
+        const auto itr = std::ranges::lower_bound(expression, value, [](const Variable& lhs, const Variable& rhs) -> bool {
+            return std::tie(lhs.name, lhs.exponent) < std::tie(rhs.name, rhs.exponent);
+        });
 
         if (itr != expression.end() && itr->name == value.name && itr->exponent == value.exponent) {
             itr->coefficient += value.coefficient;
@@ -17,9 +21,21 @@ public:
         return *this;
     }
 
+
     Polynomial operator+(const Variable& value) const {
         Polynomial polynomial = *this;
         polynomial += value;
+        return polynomial;
+    }
+
+    Polynomial& operator-=(const Variable& value) {
+        *this += -value;
+        return *this;
+    }
+
+    Polynomial operator-(const Variable& value) const {
+        Polynomial polynomial = *this;
+        polynomial -= value;
         return polynomial;
     }
 
@@ -39,6 +55,13 @@ public:
     Polynomial partial_substitution();
 
     Fraction complete_substitution();
+
+    constexpr bool is_fraction() const { return expression.size() == 1 && expression[0].is_fraction(); }
+
+    constexpr explicit operator Fraction() const {
+        assert(is_fraction());
+        return static_cast<Fraction>(expression[0]);
+    }
 
     friend std::ostream& operator<<(std::ostream& out, const Polynomial& polynomial) {
         if (!polynomial.expression.empty()) {
