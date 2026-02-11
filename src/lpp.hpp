@@ -5,6 +5,7 @@ namespace lpp {
     using BV = std::vector<Variable>;
     using C = std::map<Variable, Variable>;
     using CoefficientMatrix = std::map<Variable, std::vector<Fraction>>;
+    using Result = std::map<Variable, Fraction>;
 } // namespace lpp
 
 class lpp::LPP {
@@ -17,7 +18,7 @@ public:
     LPP(const Optimization type, const Polynomial& objective, std::initializer_list<Inequation>&& constraints) :
         type(type), objective(objective), constraints(constraints) {}
 
-    std::variant<std::map<Variable, Fraction>, std::string> optimize() const { return compute(standardize().prepare_computational_table()); }
+    std::variant<Result, std::string> optimize() const { return compute(standardize().prepare_computational_table()); }
 
     friend std::ostream& operator<<(std::ostream& out, const LPP& lpp) {
         out << (lpp.type == Optimization::MAXIMIZE ? "Maximize" : "Minimize") << "   " << lpp.objective << std::endl;
@@ -100,10 +101,10 @@ private:
         return {bv, c, coefficient_matrix};
     }
 
-    std::variant<std::map<Variable, Fraction>, std::string> compute(const std::tuple<BV, C, CoefficientMatrix>& table) const {
+    std::variant<Result, std::string> compute(const std::tuple<BV, C, CoefficientMatrix>& table) const {
         const int size = constraints.size();
         auto [bv, c, coefficient_matrix] = table;
-        std::map<Variable, Fraction> res;
+        Result res;
         std::vector unit_matrix(size, std::vector<Fraction>(size));
 
         const auto extract_M_coefficient = [](const Polynomial& polynomial) -> Fraction {

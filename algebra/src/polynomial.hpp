@@ -1,6 +1,6 @@
 #pragma once
 
-class lpp::Polynomial {
+class algebra::Polynomial {
 public:
     std::vector<Variable> expression;
 
@@ -75,6 +75,10 @@ public:
     }
 };
 
-inline lpp::Polynomial operator+(const lpp::Variable& lhs, const lpp::Variable& rhs) { return lpp::Polynomial(std::vector{lhs, rhs}); }
+inline algebra::Polynomial operator+(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Polynomial(std::vector{lhs, rhs});
+}
 
-inline lpp::Polynomial operator-(const lpp::Variable& lhs, const lpp::Variable& rhs) { return lpp::Polynomial(std::vector{lhs, -rhs}); }
+inline algebra::Polynomial operator-(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Polynomial(std::vector{lhs, -rhs});
+}

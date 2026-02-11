@@ -1,0 +1,3 @@
+[submodule "algebra"]
+	path = algebra
+	url = https://github.com/Dream2503/algebra.git

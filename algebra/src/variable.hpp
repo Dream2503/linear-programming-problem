@@ -1,6 +1,6 @@
 #pragma once
 
-class lpp::Variable {
+class algebra::Variable {
 public:
     static constexpr std::string CONSTANT = "CONSTANT";
     std::string name;
@@ -113,7 +113,7 @@ public:
 };
 
 namespace std {
-    inline lpp::Variable abs(lpp::Variable variable) {
+    inline algebra::Variable abs(algebra::Variable variable) {
         variable.coefficient = std::abs(variable.coefficient);
         return variable;
     }

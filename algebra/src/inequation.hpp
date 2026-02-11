@@ -1,6 +1,6 @@
 #pragma once
 
-class lpp::Inequation {
+class algebra::Inequation {
 public:
     enum class Operator { LT, LE, GT, GE, EQ } opr;
     Fraction rhs;
@@ -70,25 +70,27 @@ public:
     }
 };
 
-class lpp::Equation : public Inequation {
+class algebra::Equation : public Inequation {
 public:
     Equation(const Polynomial& polynomial, const Fraction& rhs) : Inequation(polynomial, Operator::EQ, rhs) {}
 };
 
-inline lpp::Inequation operator<(const lpp::Polynomial& polynomial, const lpp::Fraction& value) {
-    return lpp::Inequation(polynomial, lpp::Inequation::Operator::LT, value);
+inline algebra::Inequation operator<(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
+    return algebra::Inequation(polynomial, algebra::Inequation::Operator::LT, value);
 }
 
-inline lpp::Inequation operator<=(const lpp::Polynomial& polynomial, const lpp::Fraction& value) {
-    return lpp::Inequation(polynomial, lpp::Inequation::Operator::LE, value);
+inline algebra::Inequation operator<=(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
+    return algebra::Inequation(polynomial, algebra::Inequation::Operator::LE, value);
 }
 
-inline lpp::Inequation operator>(const lpp::Polynomial& polynomial, const lpp::Fraction& value) {
-    return lpp::Inequation(polynomial, lpp::Inequation::Operator::GT, value);
+inline algebra::Inequation operator>(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
+    return algebra::Inequation(polynomial, algebra::Inequation::Operator::GT, value);
 }
 
-inline lpp::Inequation operator>=(const lpp::Polynomial& polynomial, const lpp::Fraction& value) {
-    return lpp::Inequation(polynomial, lpp::Inequation::Operator::GE, value);
+inline algebra::Inequation operator>=(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
+    return algebra::Inequation(polynomial, algebra::Inequation::Operator::GE, value);
 }
 
-inline lpp::Equation operator==(const lpp::Polynomial& polynomial, const lpp::Fraction& value) { return lpp::Equation(polynomial, value); }
+inline algebra::Equation operator==(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
+    return algebra::Equation(polynomial, value);
+}

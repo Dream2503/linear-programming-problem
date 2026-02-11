@@ -1,6 +1,6 @@
 #pragma once
 
-class lpp::Fraction {
+class algebra::Fraction {
     constexpr void simplify() {
         assert(denominator != 0);
 
@@ -116,7 +116,7 @@ public:
 };
 
 namespace std {
-    inline lpp::Fraction abs(lpp::Fraction fraction) {
+    inline algebra::Fraction abs(algebra::Fraction fraction) {
         fraction.numerator = std::abs(fraction.numerator);
         return fraction;
     }
