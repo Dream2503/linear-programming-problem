@@ -1,112 +1,174 @@
 #pragma once
 
 class algebra::Variable {
-public:
-    static constexpr std::string CONSTANT = "CONSTANT";
-    std::string name;
-    Fraction coefficient = 1, exponent = 1;
+    struct Var {
+        std::string name;
+        Fraction exponent;
 
-    constexpr Variable() = default;
+        constexpr std::strong_ordering operator<=>(const Var&) const = default;
+    };
 
-    constexpr Variable(const std::string& name) : name(name) {}
+    void print_variables(std::ostream& out) const {
+        for (const auto& [name, exponent] : variables) {
+            if (exponent != 1) {
+                out << '(';
+            }
+            out << name;
 
-    constexpr Variable(const Fraction value) : name(CONSTANT), coefficient(value) {}
+            if (exponent != 1) {
+                out << '^';
 
-    constexpr Variable operator-() const {
-        Variable variable = *this;
-        variable.coefficient = -variable.coefficient;
-        return variable;
+                if (exponent.denominator != 1) {
+                    out << '(' << exponent << ')';
+                } else {
+                    out << exponent;
+                }
+            }
+            if (exponent != 1) {
+                out << ')';
+            }
+        }
     }
 
-    constexpr Variable& operator*=(const Fraction& value) {
-        coefficient *= value;
+public:
+    Fraction coefficient = 1;
+    std::vector<Var> variables;
+
+    Variable() = default;
+
+    Variable(const std::string& name) : variables({{name, 1}}) {}
+
+    Variable(const Fraction& coefficient) : coefficient(coefficient) {}
+
+    Variable operator-() const {
+        Variable res = *this;
+        res.coefficient = -res.coefficient;
+        return res;
+    }
+
+    Variable& operator*=(const Variable& value) {
+        coefficient *= value.coefficient;
+
+        for (const Var& var : value.variables) {
+            const auto itr = std::ranges::lower_bound(variables, var);
+
+            if (itr != variables.end() && itr->name == var.name) {
+                if ((itr->exponent += var.exponent) == 0) {
+                    variables.erase(itr);
+                }
+            } else {
+                variables.insert(itr, var);
+            }
+        }
         return *this;
     }
 
-    constexpr Variable operator*(const Fraction& value) const {
-        Variable variable = *this;
-        variable *= value;
-        return variable;
+    Variable operator*(const Variable& value) const {
+        Variable res = *this;
+        res *= value;
+        return res;
     }
 
-    constexpr Variable& operator^=(const Fraction& value) {
+    Variable& operator*=(const Fraction& value) {
+        this->coefficient *= value;
+        return *this;
+    }
+
+    Variable operator*(const Fraction& value) const {
+        Variable res = *this;
+        res *= value;
+        return res;
+    }
+
+    Variable& operator/=(const Variable& value) {
+        coefficient /= value.coefficient;
+
+        for (const Var& var : value.variables) {
+            const auto itr = std::ranges::lower_bound(variables, var);
+
+            if (itr != variables.end() && itr->name == var.name) {
+                if ((itr->exponent -= var.exponent) == 0) {
+                    variables.erase(itr);
+                }
+            } else {
+                variables.emplace(itr, var.name, -var.exponent);
+            }
+        }
+        return *this;
+    }
+
+    Variable operator/(const Variable& value) const {
+        Variable res = *this;
+        res /= value;
+        return res;
+    }
+
+    Variable& operator^=(const Fraction& value) {
         coefficient ^= value;
 
-        if (name != CONSTANT) {
+        for (auto& [_, exponent] : variables) {
             exponent *= value;
         }
         return *this;
     }
 
-    constexpr Variable operator^(const Fraction& value) const {
+    Variable operator^(const Fraction& value) const {
         Variable variable = *this;
         variable ^= value;
         return variable;
     }
 
-    constexpr Variable& operator*=(const Variable& variable) {
-        if (name == CONSTANT) {
-            name = variable.name;
-            exponent = variable.exponent;
-        } else {
-            name += variable.name;
-            exponent += variable.exponent;
+    constexpr std::strong_ordering operator<=>(const Variable& value) const {
+        const bool is_const = this->variables.empty();
+        const bool value_const = value.variables.empty();
+
+        if (is_const != value_const) {
+            return is_const ? std::strong_ordering::greater : std::strong_ordering::less;
         }
-        coefficient *= variable.coefficient;
-        return *this;
-    }
-
-    constexpr Variable operator*(const Variable& value) const {
-        Variable variable = *this;
-        variable *= value;
-        return variable;
-    }
-
-    constexpr std::strong_ordering operator<=>(const Variable& other) const {
-        return std::tie(name, exponent, coefficient) <=> std::tie(other.name, other.exponent, other.coefficient);
+        return std::tie(variables, coefficient) <=> std::tie(value.variables, value.coefficient);
     }
 
     constexpr bool operator==(const Variable&) const = default;
 
-    constexpr Fraction substitute(const Fraction value) const { return name != CONSTANT ? coefficient * (value ^ exponent) : Fraction(); }
+    Variable partial_substitution();
 
-    constexpr Variable basis() const { return Variable(name); }
+    Fraction complete_substitution();
 
-    constexpr bool is_fraction() const { return name == CONSTANT; }
+    Variable basis() const {
+        Variable res = *this;
+        res.coefficient = 1;
+        return res;
+    }
 
     constexpr explicit operator Fraction() const {
-        assert(is_fraction());
+        assert(variables.empty());
         return coefficient;
     }
 
-    constexpr friend Variable operator*(const Fraction& value, const Variable& variable) { return variable * value; }
-
     friend std::ostream& operator<<(std::ostream& out, const Variable& variable) {
-        if (variable.exponent == 0 || variable.name == CONSTANT) {
+        if (variable.variables.size() == 0) {
             out << variable.coefficient;
             return out;
         }
         if (variable.coefficient == 0) {
             out << '0';
         } else if (variable.coefficient == 1) {
-            out << variable.name;
-        } else {
-            if (variable.coefficient == -1) {
-                out << '-' << variable.name;
-            } else if (variable.coefficient.denominator != 1) {
-                out << '(' << variable.coefficient.numerator << variable.name << '/' << variable.coefficient.denominator << ')';
+            variable.print_variables(out);
+        } else if (variable.coefficient == -1) {
+            out << '-';
+            variable.print_variables(out);
+        } else if (variable.coefficient.denominator != 1) {
+            if (variable.coefficient.numerator == 1) {
+                variable.print_variables(out);
+                out << '/' << variable.coefficient.denominator;
             } else {
-                out << variable.coefficient.numerator << variable.name;
+                out << '(' << variable.coefficient.numerator;
+                variable.print_variables(out);
+                out << '/' << variable.coefficient.denominator << ')';
             }
-            if (variable.exponent != 1) {
-                out << '^';
-
-                if (variable.exponent.denominator != 1) {
-                    out << '(' << variable.exponent << ')';
-                } else {
-                    out << variable.exponent;
-                }
-            }
+        } else {
+            out << variable.coefficient;
+            variable.print_variables(out);
         }
         return out;
     }
@@ -118,3 +180,7 @@ namespace std {
         return variable;
     }
 } // namespace std
+
+constexpr algebra::Variable operator*(const algebra::Fraction& value, const algebra::Variable& variable) { return variable * value; }
+
+constexpr algebra::Variable operator/(const algebra::Fraction& value, const algebra::Variable& variable) { return variable / value; }
