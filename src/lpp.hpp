@@ -10,13 +10,13 @@ namespace lpp {
 
 class lpp::LPP {
 public:
-    static constexpr auto B = Variable(""), M = Variable("M");
+    inline static const Variable B{""}, M{"M"};
     Optimization type;
     Polynomial objective;
     std::vector<Inequation> constraints;
 
     LPP(const Optimization type, const Polynomial& objective, std::initializer_list<Inequation>&& constraints) :
-        type(type), objective(objective), constraints(constraints) {}
+        type(type), objective(objective), constraints(constraints) {} // need to add variables integrity check
 
     std::variant<Result, std::string> optimize() const { return compute(standardize().prepare_computational_table()); }
 
@@ -56,10 +56,10 @@ private:
     std::tuple<BV, C, CoefficientMatrix> prepare_computational_table() const {
         const int size = constraints.size();
         int j = 1;
-        std::vector unit_matrix(size, std::vector<Fraction>(size));
         BV bv;
         C c;
         CoefficientMatrix coefficient_matrix;
+        Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
 
         for (const Variable& variable : objective.expression) {
             c.emplace(variable.basis(), variable.coefficient);
@@ -82,9 +82,6 @@ private:
             }
         }
         for (int i = 0; i < size; i++) {
-            unit_matrix[i][i] = 1;
-        }
-        for (int i = 0; i < size; i++) {
             const auto itr = std::ranges::find_if(
                 coefficient_matrix, [&unit_matrix, i](const std::vector<Fraction>& fractions) -> bool { return fractions == unit_matrix[i]; },
                 &std::map<Variable, std::vector<Fraction>>::value_type::second);
@@ -105,7 +102,7 @@ private:
         const int size = constraints.size();
         auto [bv, c, coefficient_matrix] = table;
         Result res;
-        std::vector unit_matrix(size, std::vector<Fraction>(size));
+        Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
 
         const auto extract_M_coefficient = [](const Polynomial& polynomial) -> Fraction {
             const auto itr = std::ranges::find(polynomial.expression, M, [](const Variable& variable) -> Variable { return variable.basis(); });
@@ -115,10 +112,6 @@ private:
             }
             return static_cast<Fraction>(polynomial);
         };
-
-        for (int i = 0; i < size; i++) {
-            unit_matrix[i][i] = 1;
-        }
         while (true) {
             std::vector<Fraction> mr;
             std::vector<Polynomial> zj_cj;
@@ -133,7 +126,7 @@ private:
             }
             if (std::ranges::all_of(
                     zj_cj, [extract_M_coefficient](const Polynomial& polynomial) -> bool { return extract_M_coefficient(polynomial) >= 0; })) {
-                if (std::ranges::contains(bv, 'A', [](const Variable& variable) -> char { return variable.name[0]; })) {
+                if (std::ranges::contains(bv, 'A', [](const Variable& variable) -> char { return variable.variables[0].name[0]; })) {
                     return "No feasible solution";
                 }
                 for (const Variable& variable :
@@ -158,7 +151,7 @@ private:
             }
             const std::pair pivot = {ev->first, lv};
 
-            if (bv[lv].name[0] == 'A') {
+            if (bv[lv].variables[0].name[0] == 'A') {
                 coefficient_matrix.erase(bv[lv]);
                 c.erase(bv[lv]);
             }
@@ -185,3 +178,5 @@ private:
         }
     }
 };
+
+inline std::vector<lpp::Result> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) { return {}; }

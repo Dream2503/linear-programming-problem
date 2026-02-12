@@ -74,6 +74,7 @@ int main() {
     test(LPP(Optimization::MAXIMIZE, -4 * x - y,
              {
                  3 * x + y == 3,
+                 4 * x + 3 * y >= 6,
                  x + 2 * y <= 3,
              }));
     test(LPP(Optimization::MAXIMIZE, 3 * x1 + 2 * x2 + x3,
