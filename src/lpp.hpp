@@ -83,7 +83,8 @@ private:
         }
         for (int i = 0; i < size; i++) {
             const auto itr = std::ranges::find_if(
-                coefficient_matrix, [&unit_matrix, i](const std::vector<Fraction>& fractions) -> bool { return fractions == unit_matrix[i]; },
+                coefficient_matrix | std::views::drop(1),
+                [&unit_matrix, i](const std::vector<Fraction>& fractions) -> bool { return fractions == unit_matrix[i]; },
                 &std::map<Variable, std::vector<Fraction>>::value_type::second);
 
             if (itr != coefficient_matrix.end()) {
@@ -179,4 +180,44 @@ private:
     }
 };
 
-inline std::vector<lpp::Result> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) { return {}; }
+inline std::vector<lpp::Result> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) {
+    std::map<Variable, std::vector<Fraction>> variables;
+
+    for (const Equation& equation : equations) {
+        for (const Variable& variable : equation.lhs.expression) {
+            variables[variable.basis()].push_back(variable.coefficient);
+        }
+        variables[LPP::B].push_back(equation.rhs);
+    }
+    const int row = variables.size() - 1;
+    const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, [](const std::vector<Fraction>& vars) -> int {
+                        return vars.size();
+                    }).size();
+    const int n = std::max(row, col), k = std::min(row, col);
+    const std::vector<std::vector<int>> combinations = detail::generate_combination(n, k);
+    std::vector<Result> result;
+
+    for (const std::vector<int>& combination : combinations) {
+        Matrix<Fraction> B(k, k), C(k, 1);
+        std::vector<Variable> X;
+        X.reserve(k);
+
+        for (int i = 0; i < k; i++) {
+            const auto itr = std::next(variables.begin(), combination[i] + 1); // B
+
+            for (int j = 0; j < k; j++) {
+                B[j, i] = itr->second[j];
+            }
+            X.push_back(itr->first);
+            C[i, 0] = variables[LPP::B][i];
+        }
+        Matrix<Fraction> res = B.inverse() * C;
+        Result element;
+
+        for (int i = 0; i < k; i++) {
+            element[X[i]] = res[i, 0];
+        }
+        result.push_back(element);
+    }
+    return result;
+}
