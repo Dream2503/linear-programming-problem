@@ -16,6 +16,16 @@ void test(LPP&& lpp) {
     std::cout << std::endl << std::endl;
 }
 
+void test(std::vector<Result>&& res) {
+    for (const Result& result : res) {
+        for (const auto& [variable, fraction] : result) {
+            std::cout << variable << '=' << fraction << ' ';
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl << std::endl;
+}
+
 int main() {
     const Variable x("x"), y("y"), x1("x1"), x2("x2"), x3("x3");
 
@@ -81,5 +91,29 @@ int main() {
              {
                  -3 * x1 + 2 * x2 + 2 * x3 == 8,
                  -3 * x1 + 4 * x2 + x3 == 7,
+             }));
+    test(basic_feasible_solutions({
+        x1 + 2 * x2 + x3 == 4,
+        2 * x1 + x2 + 5 * x3 == 5,
+    }));
+    test(basic_feasible_solutions({
+        2 * x1 + x2 - x3 == 2,
+        3 * x1 + 2 * x2 + x3 == 3,
+    }));
+    test(LPP(Optimization::MAXIMIZE, 2 * x1 + 3 * x2 + 10 * x3,
+             {
+                 x1 + 2 * x3 == 0,
+                 x2 + x3 == 1,
+             }));
+    test(LPP(Optimization::MAXIMIZE, 2 * x1 + 3 * x2 + 10 * x3,
+             {
+                 x1 - 2 * x3 == 0,
+                 x2 + x3 == 1,
+             }));
+    test(LPP(Optimization::MAXIMIZE, 2 * x + y,
+             {
+                 4 * x + 3 * y <= 12,
+                 4 * x + y <= 8,
+                 4 * x - y <= 8,
              }));
 }
