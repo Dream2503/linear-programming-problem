@@ -9,7 +9,7 @@ namespace lpp {
     std::vector<std::map<Variable, Fraction>> basic_feasible_solutions(const std::vector<Equation>&);
 
     namespace detail {
-        void generate_combination(int, int, int, std::vector<int>&, std::vector<std::vector<int>>&);
+        std::vector<std::vector<int>> generate_combination(int, int);
     }
 } // namespace lpp
 
