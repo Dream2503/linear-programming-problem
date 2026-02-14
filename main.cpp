@@ -116,4 +116,10 @@ int main() {
                  4 * x + y <= 8,
                  4 * x - y <= 8,
              }));
+    test(LPP(Optimization::MAXIMIZE, 5 * x + 3 * y,
+             {
+                 x + y <= 2,
+                 5 * x + 2 * y <= 10,
+                 3 * x + 8 * y <= 12,
+             }));
 }
