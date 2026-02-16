@@ -48,12 +48,12 @@ private:
             lpp.objective *= -1;
         }
         for (Inequation& constraint : lpp.constraints) {
-            if (constraint.rhs < 0) {
+            if (static_cast<Fraction>(constraint.rhs) < 0) {
                 constraint *= -1;
             }
-            if (constraint.opr != Inequation::Operator::EQ) {
+            if (constraint.opr != RelationalOperator::EQ) {
                 Variable variable(std::string("s") + std::to_string(i++));
-                constraint = Equation(constraint.lhs + (constraint.opr == Inequation::Operator::LE ? variable : -variable), constraint.rhs);
+                constraint = Equation(constraint.lhs + (constraint.opr == RelationalOperator::LE ? variable : -variable), constraint.rhs);
             }
         }
         return lpp;
@@ -63,16 +63,16 @@ private:
         LPP lpp = *this;
 
         for (const Inequation& constraint : constraints) {
-            if (constraint.opr == Inequation::Operator::EQ) {
-                lpp.constraints.push_back(Inequation(constraint.lhs, Inequation::Operator::LE, constraint.rhs));
-                lpp.constraints.push_back(Inequation(constraint.lhs, Inequation::Operator::GE, constraint.rhs));
+            if (constraint.opr == RelationalOperator::EQ) {
+                lpp.constraints.push_back(Inequation(constraint.lhs, RelationalOperator::LE, constraint.rhs));
+                lpp.constraints.push_back(Inequation(constraint.lhs, RelationalOperator::GE, constraint.rhs));
             }
         }
-        std::erase_if(lpp.constraints, [](const Inequation& inequation) -> bool { return inequation.opr == Inequation::Operator::EQ; });
+        std::erase_if(lpp.constraints, [](const Inequation& inequation) -> bool { return inequation.opr == RelationalOperator::EQ; });
 
         for (Inequation& constraint : lpp.constraints) {
-            if (type == Optimization::MAXIMIZE && constraint.opr == Inequation::Operator::GE ||
-                type == Optimization::MINIMIZE && constraint.opr == Inequation::Operator::LE) {
+            if (type == Optimization::MAXIMIZE && constraint.opr == RelationalOperator::GE ||
+                type == Optimization::MINIMIZE && constraint.opr == RelationalOperator::LE) {
                 constraint *= -1;
             }
         }
@@ -94,7 +94,7 @@ private:
             for (const Variable& variable : constraint.lhs.expression) {
                 c.emplace(variable.basis(), 0);
             }
-            coefficient_matrix[B].push_back(constraint.rhs);
+            coefficient_matrix[B].push_back(static_cast<Fraction>(constraint.rhs));
         }
         for (const Variable& variable : c | std::views::keys) {
             coefficient_matrix.emplace(variable, std::vector<Fraction>());
@@ -225,7 +225,7 @@ inline std::vector<lpp::Result> lpp::basic_feasible_solutions(const std::vector<
         for (const Variable& variable : equation.lhs.expression) {
             variables[variable.basis()].push_back(variable.coefficient);
         }
-        variables[LPP::B].push_back(equation.rhs);
+        variables[LPP::B].push_back(static_cast<Fraction>(equation.rhs));
     }
     const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, &std::vector<Fraction>::size).size();
     const int row = variables.size() - 1, n = std::max(row, col), k = std::min(row, col);
