@@ -6,7 +6,10 @@ public:
 
     constexpr Polynomial() = default;
 
+    Polynomial(const Fraction& fraction) { expression.push_back(fraction); }
+
     Polynomial(const Variable& variable) { expression.push_back(variable); }
+
     Polynomial(const std::vector<Variable>& terms) : expression(terms) { std::ranges::sort(expression); }
 
     Polynomial operator-() const {
@@ -18,18 +21,12 @@ public:
         return res;
     }
 
-    Polynomial& operator+=(const Polynomial& value) {
-        for (const Variable& variable : value.expression) {
-            *this += variable;
-        }
+    Polynomial& operator+=(const Fraction& value) {
+        *this += Variable(value);
         return *this;
     }
 
-    Polynomial operator+(const Polynomial& value) const {
-        Polynomial res = *this;
-        res += value;
-        return res;
-    }
+    Polynomial operator+(const Fraction& value) const { return *this + Variable(value); }
 
     Polynomial& operator+=(const Variable& value) {
         const auto itr = std::ranges::lower_bound(expression, value, [](const Variable& lhs, const Variable& rhs) -> bool {
@@ -56,12 +53,32 @@ public:
         return polynomial;
     }
 
-    Polynomial& operator+=(const Fraction& value) {
-        *this += Variable(value);
+    Polynomial& operator+=(const Polynomial& value) {
+        for (const Variable& variable : value.expression) {
+            *this += variable;
+        }
         return *this;
     }
 
-    Polynomial operator+(const Fraction& value) const { return *this + Variable(value); }
+    Polynomial operator+(const Polynomial& value) const {
+        Polynomial res = *this;
+        res += value;
+        return res;
+    }
+
+    Polynomial operator-=(const Fraction& value) {
+        *this += -value;
+        return *this;
+    }
+
+    Polynomial operator-(const Fraction& value) const { return *this + -value; }
+
+    Polynomial& operator-=(const Variable& value) {
+        *this += -value;
+        return *this;
+    }
+
+    Polynomial operator-(const Variable& value) const { return *this + -value; }
 
     Polynomial& operator-=(const Polynomial& value) {
         *this += -value;
@@ -71,46 +88,6 @@ public:
     Polynomial operator-(const Polynomial& value) const {
         Polynomial res = *this;
         res -= value;
-        return res;
-    }
-
-    Polynomial& operator-=(const Variable& value) {
-        *this += -value;
-        return *this;
-    }
-
-    Polynomial operator-(const Variable& value) const { return *this + -value; }
-
-    Polynomial operator-=(const Fraction& value) {
-        *this += -value;
-        return *this;
-    }
-
-    Polynomial operator-(const Fraction& value) const { return *this + -value; }
-
-    Polynomial& operator*=(const Polynomial& value) {
-        for (const Variable& variable : value.expression) {
-            *this *= variable;
-        }
-        return *this;
-    }
-
-    Polynomial operator*(const Polynomial& value) const {
-        Polynomial res = *this;
-        res *= value;
-        return res;
-    }
-
-    Polynomial& operator*=(const Variable& value) {
-        for (Variable& variable : expression) {
-            variable *= value;
-        }
-        return *this;
-    }
-
-    Polynomial operator*(const Variable& value) const {
-        Polynomial res = *this;
-        res *= value;
         return res;
     }
 
@@ -127,13 +104,67 @@ public:
         return polynomial;
     }
 
+    Polynomial& operator*=(const Variable& value) {
+        for (Variable& variable : expression) {
+            variable *= value;
+        }
+        return *this;
+    }
+
+    Polynomial operator*(const Variable& value) const {
+        Polynomial res = *this;
+        res *= value;
+        return res;
+    }
+
+    Polynomial& operator*=(const Polynomial& value) {
+        for (const Variable& variable : value.expression) {
+            *this *= variable;
+        }
+        return *this;
+    }
+
+    Polynomial operator*(const Polynomial& value) const {
+        Polynomial res = *this;
+        res *= value;
+        return res;
+    }
+
+    Polynomial& operator/=(const Fraction& value) {
+        for (Variable& variable : expression) {
+            variable /= value;
+        }
+        return *this;
+    }
+
+    Polynomial operator/(const Fraction& value) const {
+        Polynomial polynomial = *this;
+        polynomial /= value;
+        return polynomial;
+    }
+
+    Polynomial& operator/=(const Variable& value) {
+        for (Variable& variable : expression) {
+            variable /= value;
+        }
+        return *this;
+    }
+
+    Polynomial operator/(const Variable& value) const {
+        Polynomial res = *this;
+        res *= value;
+        return res;
+    }
+
     Polynomial partial_substitution();
 
     Fraction complete_substitution();
 
-    explicit operator Fraction() const {
+    explicit operator Fraction() const { return static_cast<Fraction>(static_cast<Variable>(*this)); }
+
+    explicit operator Variable() const {
         assert(expression.size() == 1);
-        return static_cast<Fraction>(expression[0]);
+        return expression[0];
     }
 
     friend std::ostream& operator<<(std::ostream& out, const Polynomial& polynomial) {

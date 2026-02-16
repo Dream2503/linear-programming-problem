@@ -1,38 +1,19 @@
 #pragma once
 
 class algebra::Inequation {
-public:
-    enum class Operator { LT, LE, GT, GE, EQ } opr;
-    Fraction rhs;
-    Polynomial lhs;
 
-    Inequation(const Polynomial& polynomial, const Operator opr, const Fraction& rhs) : opr(opr), rhs(rhs), lhs(polynomial) {}
+public:
+    RelationalOperator opr;
+    Polynomial lhs, rhs;
+
+    Inequation(const Polynomial& polynomial, const RelationalOperator opr, const Polynomial& rhs) : opr(opr), lhs(polynomial), rhs(rhs) {}
 
     Inequation& operator*=(const Fraction& value) {
         lhs *= value;
         rhs *= value;
 
         if (value < 0) {
-            switch (opr) {
-            case Operator::LT:
-                opr = Operator::GT;
-                break;
-
-            case Operator::LE:
-                opr = Operator::GT;
-                break;
-
-            case Operator::GT:
-                opr = Operator::LT;
-                break;
-
-            case Operator::GE:
-                opr = Operator::LE;
-                break;
-
-            default:
-                break;
-            }
+            opr = detail::invert_relational_operator(opr);
         }
         return *this;
     }
@@ -43,54 +24,192 @@ public:
         return inequation;
     }
 
-    friend std::ostream& operator<<(std::ostream& out, const Inequation& inequation) {
-        out << inequation.lhs << ' ';
+    Inequation& operator*=(const Variable& value) {
+        lhs *= value;
+        rhs *= value;
 
-        switch (inequation.opr) {
-        case Operator::LT:
-            out << '<';
-            break;
-
-        case Operator::LE:
-            out << "<=";
-            break;
-
-        case Operator::GT:
-            out << '>';
-            break;
-
-        case Operator::GE:
-            out << ">=";
-            break;
-
-        case Operator::EQ:
-            out << '=';
+        if (value.coefficient < 0) {
+            opr = detail::invert_relational_operator(opr);
         }
-        return out << ' ' << inequation.rhs;
+        return *this;
+    }
+
+    Inequation operator*(const Variable& value) const {
+        Inequation inequation = *this;
+        inequation *= value;
+        return inequation;
+    }
+
+    Inequation& operator*=(const Polynomial& value) {
+        lhs *= value;
+        rhs *= value;
+        return *this;
+    }
+
+    Inequation operator*(const Polynomial& value) const {
+        Inequation inequation = *this;
+        inequation *= value;
+        return inequation;
+    }
+
+    Inequation& operator/=(const Fraction& value) {
+        lhs /= value;
+        rhs /= value;
+
+        if (value < 0) {
+            opr = detail::invert_relational_operator(opr);
+        }
+        return *this;
+    }
+
+    Inequation operator/(const Fraction& value) const {
+        Inequation inequation = *this;
+        inequation /= value;
+        return inequation;
+    }
+
+    Inequation& operator/=(const Variable& value) {
+        lhs /= value;
+        rhs /= value;
+
+        if (value.coefficient < 0) {
+            opr = detail::invert_relational_operator(opr);
+        }
+        return *this;
+    }
+
+    Inequation operator/(const Variable& value) const {
+        Inequation inequation = *this;
+        inequation /= value;
+        return inequation;
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, const Inequation& inequation) {
+        return out << inequation.lhs << ' ' << inequation.opr << ' ' << inequation.rhs;
     }
 };
 
 class algebra::Equation : public Inequation {
 public:
-    Equation(const Polynomial& polynomial, const Fraction& rhs) : Inequation(polynomial, Operator::EQ, rhs) {}
+    Equation(const Polynomial& polynomial, const Polynomial& rhs) : Inequation(polynomial, RelationalOperator::EQ, rhs) {}
 };
 
-inline algebra::Inequation operator<(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
-    return algebra::Inequation(polynomial, algebra::Inequation::Operator::LT, value);
+inline algebra::Inequation operator<(const algebra::Variable& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LT, rhs);
 }
 
-inline algebra::Inequation operator<=(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
-    return algebra::Inequation(polynomial, algebra::Inequation::Operator::LE, value);
+inline algebra::Inequation operator<=(const algebra::Variable& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LE, rhs);
 }
 
-inline algebra::Inequation operator>(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
-    return algebra::Inequation(polynomial, algebra::Inequation::Operator::GT, value);
+inline algebra::Inequation operator>(const algebra::Variable& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GT, rhs);
 }
 
-inline algebra::Inequation operator>=(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
-    return algebra::Inequation(polynomial, algebra::Inequation::Operator::GE, value);
+inline algebra::Inequation operator>=(const algebra::Variable& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GE, rhs);
 }
 
-inline algebra::Equation operator==(const algebra::Polynomial& polynomial, const algebra::Fraction& value) {
-    return algebra::Equation(polynomial, value);
+inline algebra::Equation operator==(const algebra::Variable& lhs, const algebra::Fraction& rhs) { return algebra::Equation(lhs, rhs); }
+
+inline algebra::Inequation operator<(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return rhs > lhs; }
+
+inline algebra::Inequation operator<=(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return rhs >= lhs; }
+
+inline algebra::Inequation operator>(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return rhs < lhs; }
+
+inline algebra::Inequation operator>=(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return rhs <= lhs; }
+
+inline algebra::Equation operator==(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return rhs == lhs; }
+
+inline algebra::Inequation operator<(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LT, rhs);
 }
+
+inline algebra::Inequation operator<=(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LE, rhs);
+}
+
+inline algebra::Inequation operator>(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GT, rhs);
+}
+
+inline algebra::Inequation operator>=(const algebra::Variable& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GE, rhs);
+}
+
+inline algebra::Equation operator==(const algebra::Variable& lhs, const algebra::Variable& rhs) { return algebra::Equation(lhs, rhs); }
+
+inline algebra::Inequation operator<(const algebra::Polynomial& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LT, rhs);
+}
+
+inline algebra::Inequation operator<=(const algebra::Polynomial& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LE, rhs);
+}
+
+inline algebra::Inequation operator>(const algebra::Polynomial& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GT, rhs);
+}
+
+inline algebra::Inequation operator>=(const algebra::Polynomial& lhs, const algebra::Fraction& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GE, rhs);
+}
+
+inline algebra::Equation operator==(const algebra::Polynomial& lhs, const algebra::Fraction& rhs) { return algebra::Equation(lhs, rhs); }
+
+inline algebra::Inequation operator<(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs > lhs; }
+
+inline algebra::Inequation operator<=(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs >= lhs; }
+
+inline algebra::Inequation operator>(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs < lhs; }
+
+inline algebra::Inequation operator>=(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs <= lhs; }
+
+inline algebra::Equation operator==(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs == lhs; }
+
+inline algebra::Inequation operator<(const algebra::Polynomial& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LT, rhs);
+}
+
+inline algebra::Inequation operator<=(const algebra::Polynomial& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LE, rhs);
+}
+
+inline algebra::Inequation operator>(const algebra::Polynomial& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GT, rhs);
+}
+
+inline algebra::Inequation operator>=(const algebra::Polynomial& lhs, const algebra::Variable& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GE, rhs);
+}
+
+inline algebra::Equation operator==(const algebra::Polynomial& lhs, const algebra::Variable& rhs) { return algebra::Equation(lhs, rhs); }
+
+inline algebra::Inequation operator<(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs > lhs; }
+
+inline algebra::Inequation operator<=(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs >= lhs; }
+
+inline algebra::Inequation operator>(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs < lhs; }
+
+inline algebra::Inequation operator>=(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs <= lhs; }
+
+inline algebra::Equation operator==(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs == lhs; }
+
+inline algebra::Inequation operator<(const algebra::Polynomial& lhs, const algebra::Polynomial& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LT, rhs);
+}
+
+inline algebra::Inequation operator<=(const algebra::Polynomial& lhs, const algebra::Polynomial& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::LE, rhs);
+}
+
+inline algebra::Inequation operator>(const algebra::Polynomial& lhs, const algebra::Polynomial& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GT, rhs);
+}
+
+inline algebra::Inequation operator>=(const algebra::Polynomial& lhs, const algebra::Polynomial& rhs) {
+    return algebra::Inequation(lhs, algebra::RelationalOperator::GE, rhs);
+}
+
+inline algebra::Equation operator==(const algebra::Polynomial& lhs, const algebra::Polynomial& rhs) { return algebra::Equation(lhs, rhs); }

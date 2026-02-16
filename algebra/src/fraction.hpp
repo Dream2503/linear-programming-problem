@@ -18,11 +18,11 @@ class algebra::Fraction {
     }
 
 public:
-    int numerator = 0, denominator = 1;
+    int numerator, denominator;
 
     constexpr Fraction(const int numerator = 0, const int denominator = 1) : numerator(numerator), denominator(denominator) { simplify(); }
 
-    constexpr Fraction(double value) {
+    constexpr Fraction(double value) : numerator(0), denominator(1) {
         while (static_cast<int>(value) != value) {
             denominator *= 10;
             value *= 10;
@@ -102,7 +102,8 @@ public:
     constexpr std::partial_ordering operator<=>(const double value) const { return static_cast<double>(*this) <=> value; }
 
     constexpr bool operator==(const Fraction& value) const = default;
-    constexpr bool operator==(const double value) const { return static_cast<double>(*this) == value; };
+
+    constexpr bool operator==(const double value) const { return static_cast<double>(*this) == value; }
 
     constexpr explicit operator double() const { return static_cast<double>(numerator) / denominator; }
 

@@ -8,7 +8,9 @@ public:
     std::vector<std::vector<T>> matrix;
 
     Matrix() = default;
+
     Matrix(const int row, const int column, const T& value = T()) : row(row), column(column), matrix(std::vector(row, std::vector(column, value))) {}
+
     Matrix(const std::vector<std::vector<T>>& matrix) : row(matrix.size()), column(matrix[0].size()), matrix(matrix) {}
 
     template <typename U>
@@ -134,7 +136,7 @@ public:
     }
 
     template <typename U>
-    requires (!std::is_same_v<U, Matrix>)
+        requires(!std::is_same_v<U, Matrix>)
     Matrix& operator+=(const U& other) {
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < column; j++) {
@@ -171,7 +173,7 @@ public:
     }
 
     template <typename U>
-    requires (!std::is_same_v<U, Matrix>)
+        requires(!std::is_same_v<U, Matrix>)
     Matrix& operator-=(const U& other) {
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < column; j++) {
@@ -210,7 +212,7 @@ public:
     }
 
     template <typename U>
-    requires (!std::is_same_v<U, Matrix>)
+        requires(!std::is_same_v<U, Matrix>)
     Matrix& operator*=(const U& other) {
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < column; j++) {
@@ -228,7 +230,7 @@ public:
     }
 
     template <typename U>
-    requires (!std::is_same_v<U, Matrix>)
+        requires(!std::is_same_v<U, Matrix>)
     Matrix& operator/=(const U& other) {
         for (int i = 0; i < row; i++) {
             for (int j = 0; j < column; j++) {

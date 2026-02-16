@@ -46,6 +46,17 @@ public:
         return res;
     }
 
+    Variable& operator*=(const Fraction& value) {
+        this->coefficient *= value;
+        return *this;
+    }
+
+    Variable operator*(const Fraction& value) const {
+        Variable res = *this;
+        res *= value;
+        return res;
+    }
+
     Variable& operator*=(const Variable& value) {
         coefficient *= value.coefficient;
 
@@ -69,14 +80,14 @@ public:
         return res;
     }
 
-    Variable& operator*=(const Fraction& value) {
-        this->coefficient *= value;
+    Variable& operator/=(const Fraction& value) {
+        this->coefficient /= value;
         return *this;
     }
 
-    Variable operator*(const Fraction& value) const {
+    Variable operator/(const Fraction& value) const {
         Variable res = *this;
-        res *= value;
+        res /= value;
         return res;
     }
 
@@ -137,6 +148,10 @@ public:
     Variable basis() const {
         Variable res = *this;
         res.coefficient = 1;
+
+        for (auto& [_, exponent] : res.variables) {
+            exponent = 1;
+        }
         return res;
     }
 
