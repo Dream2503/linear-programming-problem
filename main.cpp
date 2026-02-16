@@ -27,7 +27,7 @@ void test(std::vector<Result>&& res) {
 }
 
 int main() {
-    const Variable x("x"), y("y"), x1("x1"), x2("x2"), x3("x3");
+    const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3");
 
     test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
              {
@@ -92,6 +92,7 @@ int main() {
                  -3 * x1 + 2 * x2 + 2 * x3 == 8,
                  -3 * x1 + 4 * x2 + x3 == 7,
              }));
+    // BFS
     test(basic_feasible_solutions({
         x1 + 2 * x2 + x3 == 4,
         2 * x1 + x2 + 5 * x3 == 5,
@@ -122,4 +123,29 @@ int main() {
                  5 * x + 2 * y <= 10,
                  3 * x + 8 * y <= 12,
              }));
+    // Surprise Test
+    test(LPP(Optimization::MAXIMIZE, 2 * x + 3 * y,
+             {
+                 x + 2 * y >= 2,
+                 3 * x + y >= 3,
+                 4 * x + 3 * y <= 6,
+             }));
+    test(basic_feasible_solutions({
+        x + 2 * y - z == 3,
+        3 * x - y + 2 * z == 4,
+        2 * x + 3 * y - 5 * z == 7,
+    }));
+    test(LPP(Optimization::MAXIMIZE, x1 + 2 * x2 + x3,
+             {
+                 2 * x1 + x2 - x3 >= -2,
+                 -2 * x1 + x2 - 5 * x3 <= 6,
+                 4 * x1 + x2 + x3 <= 6,
+             }));
+    test(LPP(Optimization::MAXIMIZE, 2 * x + 3 * y,
+             {
+                 x + 2 * y <= 4,
+                 x + y == 3,
+             }));
+
+    return 0;
 }
