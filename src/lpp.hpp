@@ -9,25 +9,87 @@ namespace lpp {
 } // namespace lpp
 
 class lpp::LPP {
+    LPP() = default;
+
 public:
     inline static const Variable B{"@"}, M{"M"}, Z{"Z"};
     Optimization type;
     Polynomial objective;
     std::vector<Inequation> constraints;
+    std::vector<Inequation> restrictions;
 
-    LPP(const Optimization type, const Polynomial& objective, std::initializer_list<Inequation>&& constraints) :
-        type(type), objective(objective), constraints(constraints) {} // need to add variables integrity check
+    LPP(const Optimization type, const Polynomial& objective, const std::vector<Inequation>& constraints,
+        const std::vector<Inequation>& restrictions) :
+        type(type), objective(objective), constraints(constraints), restrictions(restrictions) {} // need to add variables integrity check
+
+    static Inequation unrestrict(const Variable& variable) { return Inequation(variable, {}, inf); }
 
     std::variant<Result, std::string> optimize() const { return compute(standardize().prepare_computational_table()); }
 
+    LPP dual(const std::string& basis = "w") const {
+        LPP canonical = *this;
+
+        for (Inequation& constraint : canonical.constraints) {
+            if (type == Optimization::MAXIMIZE && constraint.opr == RelationalOperator::GE ||
+                type == Optimization::MINIMIZE && constraint.opr == RelationalOperator::LE) {
+                constraint *= -1;
+            }
+        }
+        const int objective_size = canonical.objective.expression.size(), constraints_size = canonical.constraints.size();
+        LPP res;
+        auto [c, coefficient_matrix] = canonical.get_coefficients();
+        res.type = canonical.type == Optimization::MAXIMIZE ? Optimization::MINIMIZE : Optimization::MAXIMIZE;
+        res.constraints.resize(objective_size);
+        res.restrictions.reserve(constraints_size);
+
+        for (int i = 0; i < constraints_size; i++) {
+            Variable variable(basis + std::to_string(i + 1));
+            res.objective += coefficient_matrix[B][i] * variable;
+            auto itr = std::next(coefficient_matrix.begin()); // B
+
+            for (int j = 0; j < objective_size; j++) {
+                res.constraints[j].lhs += itr->second[i] * variable;
+                ++itr;
+            }
+            res.restrictions.push_back(canonical.constraints[i].opr == RelationalOperator::EQ ? unrestrict(variable) : variable >= 0);
+        }
+        auto itr = c.begin();
+
+        for (int i = 0; i < objective_size; i++) {
+            if (static_cast<Fraction>(canonical.restrictions[i].rhs) == inf) {
+                res.constraints[i].opr = RelationalOperator::EQ;
+            } else if (res.type == Optimization::MAXIMIZE) {
+                res.constraints[i].opr = RelationalOperator::LE;
+            } else {
+                res.constraints[i].opr = RelationalOperator::GE;
+            }
+            res.constraints[i].rhs = itr->second;
+            ++itr;
+        }
+        return res;
+    }
+
     friend std::ostream& operator<<(std::ostream& out, const LPP& lpp) {
+        const int size = lpp.restrictions.size();
         out << (lpp.type == Optimization::MAXIMIZE ? "Maximize" : "Minimize") << "   " << lpp.objective << std::endl;
         out << "subject to " << lpp.constraints.front() << std::endl;
 
         for (const Inequation& constraint : lpp.constraints | std::views::drop(1)) {
             out << "\t   " << constraint << std::endl;
         }
-        return out;
+        out << "\t   ";
+
+        for (int i = 0; i < size; i++) {
+            if (static_cast<Fraction>(lpp.restrictions[i].rhs) == inf) {
+                out << lpp.restrictions[i].lhs << " is unrestricted";
+            } else {
+                out << lpp.restrictions[i];
+            }
+            if (i < size - 1) {
+                out << ", ";
+            }
+        }
+        return out << std::endl;
     }
 
 private:
@@ -38,6 +100,33 @@ private:
             return itr->coefficient;
         }
         return static_cast<Fraction>(polynomial);
+    }
+
+    std::pair<C, CoefficientMatrix> get_coefficients() const {
+        C c;
+        CoefficientMatrix coefficient_matrix;
+
+        for (const Variable& variable : objective.expression) {
+            c.emplace(variable.basis(), variable.coefficient);
+        }
+        for (const Inequation& constraint : constraints) {
+            for (const Variable& variable : constraint.lhs.expression) {
+                c.emplace(variable.basis(), 0);
+            }
+            coefficient_matrix[B].push_back(static_cast<Fraction>(constraint.rhs));
+        }
+        for (const Variable& variable : c | std::views::keys) {
+            coefficient_matrix.emplace(variable, std::vector<Fraction>());
+        }
+        for (const Inequation& constraint : constraints) {
+            for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::drop(1) | std::views::values) { // B
+                fractions.push_back(0);
+            }
+            for (const Variable& variable : constraint.lhs.expression) {
+                coefficient_matrix[variable.basis()].back() = variable.coefficient;
+            }
+        }
+        return {c, coefficient_matrix};
     }
 
     LPP standardize() const {
@@ -83,30 +172,9 @@ private:
         const int size = constraints.size();
         int j = 1;
         BV bv;
-        C c;
-        CoefficientMatrix coefficient_matrix;
+        auto [c, coefficient_matrix] = get_coefficients();
         Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
 
-        for (const Variable& variable : objective.expression) {
-            c.emplace(variable.basis(), variable.coefficient);
-        }
-        for (const Inequation& constraint : constraints) {
-            for (const Variable& variable : constraint.lhs.expression) {
-                c.emplace(variable.basis(), 0);
-            }
-            coefficient_matrix[B].push_back(static_cast<Fraction>(constraint.rhs));
-        }
-        for (const Variable& variable : c | std::views::keys) {
-            coefficient_matrix.emplace(variable, std::vector<Fraction>());
-        }
-        for (const Inequation& constraint : constraints) {
-            for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::drop(1) | std::views::values) { // B
-                fractions.push_back(0);
-            }
-            for (const Variable& variable : constraint.lhs.expression) {
-                coefficient_matrix[variable.basis()].back() = variable.coefficient;
-            }
-        }
         for (int i = 0; i < size; i++) {
             const auto itr = std::ranges::find_if(
                 coefficient_matrix | std::views::drop(1),
@@ -159,13 +227,13 @@ private:
                 std::next(coefficient_matrix.begin(), std::ranges::min_element(zj_cj, {}, extract_M_coefficient) - zj_cj.begin() + 1); // B
 
             for (int i = 0; i < size; i++) {
-                mr.push_back(ev->second[i] < 0 ? INT32_MAX : coefficient_matrix[B][i] / ev->second[i]);
+                mr.push_back(ev->second[i] < 0 ? inf : coefficient_matrix[B][i] / ev->second[i]);
             }
             int lv = std::ranges::min_element(mr) - mr.begin();
             bool unbounded = true;
 
             if (!std::ranges::contains(bv, 'A', [](const Variable& variable) -> char { return variable.variables[0].name[0]; })) {
-                for (int k = 0; k < size && mr[lv] != INT32_MAX; k++) {
+                for (int k = 0; k < size && mr[lv] != inf; k++) {
                     std::vector<int> candidates;
 
                     for (int i = 0; i < size; i++) {
@@ -186,7 +254,7 @@ private:
             } else {
                 unbounded = false;
             }
-            if (unbounded || mr[lv] == INT32_MAX) {
+            if (unbounded || mr[lv] == inf) {
                 return "Unbounded Solution";
             }
             if (bv[lv].variables[0].name[0] == 'A') {
