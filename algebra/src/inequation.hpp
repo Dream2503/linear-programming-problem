@@ -6,6 +6,8 @@ public:
     RelationalOperator opr;
     Polynomial lhs, rhs;
 
+    constexpr Inequation() = default;
+
     Inequation(const Polynomial& polynomial, const RelationalOperator opr, const Polynomial& rhs) : opr(opr), lhs(polynomial), rhs(rhs) {}
 
     Inequation& operator*=(const Fraction& value) {

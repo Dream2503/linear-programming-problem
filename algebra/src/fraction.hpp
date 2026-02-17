@@ -108,6 +108,9 @@ public:
     constexpr explicit operator double() const { return static_cast<double>(numerator) / denominator; }
 
     friend std::ostream& operator<<(std::ostream& out, const Fraction& fraction) {
+        if (fraction.numerator == INT32_MAX && fraction.denominator == 1) {
+            return out << "inf";
+        }
         out << fraction.numerator;
 
         if (fraction.denominator != 1) {
@@ -116,6 +119,8 @@ public:
         return out;
     }
 };
+
+inline static constexpr algebra::Fraction inf = INT32_MAX;
 
 namespace std {
     inline algebra::Fraction abs(algebra::Fraction fraction) {

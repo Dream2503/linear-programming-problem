@@ -6,6 +6,8 @@ public:
     RelationalOperator opr;
     Polynomial rhs;
 
+    constexpr Interval() = default;
+
     Interval(const Inequation& lhs, const RelationalOperator opr, const Polynomial& rhs) : lhs(lhs), opr(opr), rhs(rhs) {}
 
     friend std::ostream& operator<<(std::ostream& out, const Interval& interval) {
