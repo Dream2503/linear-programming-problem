@@ -4,7 +4,7 @@ using namespace lpp;
 
 void test(LPP&& lpp) {
     std::cout << lpp;
-    const std::variant<std::map<Variable, Fraction>, std::string> res = lpp.optimize();
+    const std::variant<std::map<Variable, Fraction>, std::string> res = lpp.optimize(true);
 
     if (auto ans = std::get_if<std::map<Variable, Fraction>>(&res)) {
         for (const auto& [variable, fraction] : *ans) {
@@ -16,8 +16,8 @@ void test(LPP&& lpp) {
     std::cout << std::endl << std::endl;
 }
 
-void test(std::vector<Result>&& res) {
-    for (const Result& result : res) {
+void test(std::vector<std::map<Variable, Fraction>>&& res) {
+    for (const std::map<Variable, Fraction>& result : res) {
         for (const auto& [variable, fraction] : result) {
             std::cout << variable << '=' << fraction << ' ';
         }
@@ -203,6 +203,14 @@ int main() {
                  2 * x + 3 * y >= 4,
                  x - y <= 2,
              },
-             {LPP::unrestrict(x), y >= 0}), "w");
+             {LPP::unrestrict(x), y >= 0}),
+         "w");
+    test(LPP(Optimization::MAXIMIZE, x + 2 * y,
+             {
+                 2 * x + 3 * y <= 4,
+                 3 * x + 4 * y == 5,
+             },
+             {x >= 0, y >= 0}),
+         "w");
     return 0;
 }
