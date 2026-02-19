@@ -8,7 +8,7 @@ namespace lpp {
     using namespace algebra;
 
     enum class Optimization { MAXIMIZE, MINIMIZE };
-    enum class Solution { UNOPTIMIZED, OPTIMIZED, INFEASIBLE, UNBOUNDED };
+    enum class Solution { UNOPTIMIZED, OPTIMIZED, INFEASIBLE, UNBOUNDED, ALTERNATE };
 
     class LPP;
     class ComputationalTable;

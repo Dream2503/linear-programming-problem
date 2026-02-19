@@ -2,16 +2,23 @@
 
 using namespace lpp;
 
-void test(LPP&& lpp) {
-    std::cout << lpp;
-    const std::variant<std::map<Variable, Fraction>, std::string> res = lpp.optimize(true);
+void test(LPP&& lpp, const std::string& method = "simplex") {
+    if (method == "simplex" || method == "dual") {
+        std::cout << lpp;
+        const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = lpp.optimize(method, true);
 
-    if (auto ans = std::get_if<std::map<Variable, Fraction>>(&res)) {
-        for (const auto& [variable, fraction] : *ans) {
-            std::cout << variable << '=' << fraction << " ";
+        if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
+            for (const std::map<Variable, Fraction>& i : *ans) {
+                for (const auto& [variable, fraction] : i) {
+                    std::cout << variable << '=' << fraction << " ";
+                }
+                std::cout << std::endl;
+            }
+        } else {
+            std::cout << std::get<std::string>(res);
         }
     } else {
-        std::cout << std::get<std::string>(res);
+        std::cout << lpp.dual(method);
     }
     std::cout << std::endl << std::endl;
 }
@@ -25,8 +32,6 @@ void test(std::vector<std::map<Variable, Fraction>>&& res) {
     }
     std::cout << std::endl << std::endl;
 }
-
-void test(LPP&& lpp, const std::string& basis) { std::cout << lpp.dual(basis) << std::endl << std::endl; }
 
 int main() {
     const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3");
@@ -212,5 +217,26 @@ int main() {
              },
              {x >= 0, y >= 0}),
          "w");
+    test(LPP(Optimization::MAXIMIZE, -5 * x - 6 * y,
+             {
+                 x + y >= 2,
+                 4 * x + y >= 4,
+
+             },
+             {x >= 0, y >= 0}),
+         "dual");
+    test(LPP(Optimization::MINIMIZE, 10 * x1 + 6 * x2 + 2 * x3,
+             {
+                 -x1 + x2 + x3 >= 1,
+                 3 * x1 + x2 - x3 >= 2,
+             },
+             {x1 >= 0, x2 >= 0, x3 >= 0}),
+         "dual");
+    test(LPP(Optimization::MAXIMIZE, 2 * x + 4 * y,
+             {
+                 x + 2 * y <= 5,
+                 x + y <= 4,
+             },
+             {x >= 0, y >= 0}));
     return 0;
 }
