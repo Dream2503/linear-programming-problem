@@ -12,13 +12,13 @@ class lpp::LPP {
             lpp.type = Optimization::MAXIMIZE;
         }
         for (Inequation& constraint : lpp.constraints) {
-            if (!dual) {
-                if (static_cast<Fraction>(constraint.rhs) < 0) {
-                    constraint *= -1;
+            if (dual) {
+                if (constraint.opr == RelationalOperator::GE) {
+                    constraint = constraint.invert();
                 }
             } else {
-                if (constraint.opr == RelationalOperator::GE) {
-                    constraint *= -1;
+                if (static_cast<Fraction>(constraint.rhs) < 0) {
+                    constraint = constraint.invert();
                 }
             }
             if (constraint.opr != RelationalOperator::EQ) {
@@ -43,14 +43,14 @@ class lpp::LPP {
         for (Inequation& constraint : lpp.constraints) {
             if (type == Optimization::MAXIMIZE && constraint.opr == RelationalOperator::GE ||
                 type == Optimization::MINIMIZE && constraint.opr == RelationalOperator::LE) {
-                constraint *= -1;
+                constraint = constraint.invert();
             }
         }
         return lpp;
     }
 
 public:
-    inline static const Variable B{"@"}, M{"M"}, Z{"Z"};
+    inline static const Variable B{"@"}, M{"M"}, Z{"Z"}; // '@' for ascii arrangement
     Optimization type;
     Polynomial objective;
     std::vector<Inequation> constraints, restrictions;
@@ -63,7 +63,7 @@ public:
 
     std::variant<std::vector<std::map<Variable, Fraction>>, std::string> optimize(const std::string& = "simplex", bool = false) const;
 
-    LPP dual(const std::string& basis = "w") const;
+    LPP dual(const std::string& = "w") const;
 
     friend std::ostream& operator<<(std::ostream& out, const LPP& lpp) {
         const int size = lpp.restrictions.size();
@@ -76,7 +76,8 @@ public:
         out << "\t   ";
 
         for (int i = 0; i < size; i++) {
-            if (static_cast<Fraction>(lpp.restrictions[i].rhs) == inf) {
+            if (lpp.restrictions[i].lhs.is_fraction() && static_cast<Fraction>(lpp.restrictions[i].lhs) == inf ||
+                lpp.restrictions[i].rhs.is_fraction() && static_cast<Fraction>(lpp.restrictions[i].rhs) == inf) {
                 out << lpp.restrictions[i].lhs << " is unrestricted";
             } else {
                 out << lpp.restrictions[i];
@@ -88,45 +89,6 @@ public:
         return out << std::endl;
     }
 };
-
-inline std::vector<std::map<algebra::Variable, algebra::Fraction>> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) {
-    std::map<Variable, std::vector<Fraction>> variables;
-
-    for (const Equation& equation : equations) {
-        for (const Variable& variable : equation.lhs.expression) {
-            variables[variable.basis()].push_back(variable.coefficient);
-        }
-        variables[LPP::B].push_back(static_cast<Fraction>(equation.rhs));
-    }
-    const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, &std::vector<Fraction>::size).size();
-    const int row = variables.size() - 1, n = std::max(row, col), k = std::min(row, col);
-    const std::vector<std::vector<int>> combinations = detail::generate_combination(n, k);
-    std::vector<std::map<Variable, Fraction>> result;
-
-    for (const std::vector<int>& combination : combinations) {
-        Matrix<Fraction> B(k, k), C(k, 1);
-        std::vector<Variable> X;
-        X.reserve(k);
-
-        for (int i = 0; i < k; i++) {
-            const auto itr = std::next(variables.begin(), combination[i] + 1); // B
-
-            for (int j = 0; j < k; j++) {
-                B[j, i] = itr->second[j];
-            }
-            X.push_back(itr->first);
-            C[i, 0] = variables[LPP::B][i];
-        }
-        Matrix<Fraction> res = B.inverse() * C;
-        std::map<Variable, Fraction> element;
-
-        for (int i = 0; i < k; i++) {
-            element[X[i]] = res[i, 0];
-        }
-        result.push_back(element);
-    }
-    return result;
-}
 
 class lpp::ComputationalTable {
     static Fraction extract_M_coefficient(const Polynomial& polynomial) {
@@ -150,7 +112,6 @@ public:
 
     explicit ComputationalTable(const LPP& lpp) : solution(Solution::UNOPTIMIZED) {
         const int size = lpp.constraints.size();
-        int j = 1;
         Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
 
         for (const Variable& variable : lpp.objective.expression) {
@@ -173,85 +134,19 @@ public:
                 coefficient_matrix[variable.basis()].back() = variable.coefficient;
             }
         }
-        for (int i = 0; i < size; i++) {
+        for (int i = 0, j = 1; i < size; i++) {
             const auto itr = std::ranges::find_if(
-                coefficient_matrix | std::views::drop(1),
-                [&unit_matrix, i](const std::vector<Fraction>& fractions) -> bool { return fractions == unit_matrix[i]; },
-                &std::map<Variable, std::vector<Fraction>>::value_type::second);
+                coefficient_matrix | std::views::drop(1), // B
+                [&unit_matrix, i](const std::pair<Variable, std::vector<Fraction>>& element) -> bool { return element.second == unit_matrix[i]; });
 
             if (itr != coefficient_matrix.end()) {
                 basis_vector.push_back(itr->first);
             } else {
-                const Variable var("A" + std::to_string(j++));
-                coefficient_matrix[var] = unit_matrix[i];
-                cost.emplace(var, -LPP::M);
-                basis_vector.push_back(var);
+                const Variable variable("A" + std::to_string(j++));
+                coefficient_matrix[variable] = unit_matrix[i];
+                cost.emplace(variable, -LPP::M);
+                basis_vector.push_back(variable);
             }
-        }
-    }
-
-    Solution optimize_dual_simplex(const bool verbose = false) {
-        solution = Solution::UNBOUNDED;
-        const int size = coefficient_matrix[LPP::B].size();
-        Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
-
-        while (true) {
-            zj_cj.clear();
-
-            for (const Variable& variable : cost | std::views::keys) {
-                Polynomial polynomial;
-
-                for (int i = 0; i < size; i++) {
-                    polynomial += cost[basis_vector[i]] * coefficient_matrix[variable][i];
-                }
-                zj_cj.push_back(polynomial - cost[variable]);
-            }
-            if (std::ranges::all_of(zj_cj, [](const Polynomial& polynomial) -> bool { return static_cast<Fraction>(polynomial) >= 0; }) &&
-                std::ranges::all_of(coefficient_matrix[LPP::B], [](const Fraction& fraction) -> bool { return fraction >= 0; })) {
-                return solution = Solution::OPTIMIZED;
-            }
-            if (verbose) {
-                std::cout << *this;
-            }
-            const int lv = std::ranges::min_element(coefficient_matrix[LPP::B]) - coefficient_matrix[LPP::B].begin(), zj_cj_size = zj_cj.size();
-            Fraction max = -inf;
-            auto ev = coefficient_matrix.end();
-            auto itr = std::next(coefficient_matrix.begin()); // B
-
-            for (int i = 0; i < zj_cj_size; i++) {
-                if (itr->second[lv] < 0) {
-                    const Fraction current = static_cast<Fraction>(zj_cj[i]) / itr->second[lv];
-
-                    if (max < current) {
-                        ev = itr;
-                        max = current;
-                    }
-                }
-                ++itr;
-            }
-            assert(ev != coefficient_matrix.end());
-
-            const std::pair pivot = {ev->first, lv};
-            std::map<Variable, std::vector<Fraction>> new_coefficient_matrix = coefficient_matrix;
-            basis_vector.erase(basis_vector.begin() + lv);
-            basis_vector.insert(basis_vector.begin() + lv, ev->first);
-
-            for (int i = 0; i < size; i++) {
-                new_coefficient_matrix[basis_vector[i]] = unit_matrix[i];
-            }
-            for (const Variable& variable : coefficient_matrix | std::views::keys |
-                     std::views::filter([this](const Variable& element) -> bool { return !std::ranges::contains(basis_vector, element); })) {
-                for (int i = 0; i < size; i++) {
-                    if (i == pivot.second) {
-                        new_coefficient_matrix[variable][i] /= coefficient_matrix[pivot.first][pivot.second];
-                    } else {
-                        new_coefficient_matrix[variable][i] = (coefficient_matrix[variable][i] * coefficient_matrix[pivot.first][pivot.second] -
-                                                               coefficient_matrix[variable][pivot.second] * coefficient_matrix[pivot.first][i]) /
-                            coefficient_matrix[pivot.first][pivot.second];
-                    }
-                }
-            }
-            coefficient_matrix = std::move(new_coefficient_matrix);
         }
     }
 
@@ -263,8 +158,6 @@ public:
         Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
 
         while (true) {
-            mr.clear();
-
             if (solution != Solution::ALTERNATE) {
                 zj_cj.clear();
 
@@ -282,8 +175,8 @@ public:
                         std::ranges::contains(basis_vector, 'A', [](const Variable& variable) -> char { return variable.variables[0].name[0]; })
                         ? Solution::INFEASIBLE
                         : Solution::OPTIMIZED;
-                    auto itr = std::next(coefficient_matrix.begin());
                     const int zj_cj_size = zj_cj.size();
+                    auto itr = std::next(coefficient_matrix.begin()); // B
 
                     for (int i = 0; i < zj_cj_size; i++) {
                         if (zj_cj[i].expression.size() == 1 && static_cast<Fraction>(zj_cj[i]) == 0 &&
@@ -293,22 +186,22 @@ public:
                         }
                         ++itr;
                     }
-
                     return solution;
                 }
             }
-            auto ev = std::next(coefficient_matrix.begin());
+            auto ev = std::next(coefficient_matrix.begin()); // B
+            mr.clear();
 
             if (solution == Solution::ALTERNATE) {
                 const int zj_cj_size = zj_cj.size();
 
                 for (int i = 0; i < zj_cj_size; i++) {
                     if (static_cast<Fraction>(zj_cj[i]) == 0 && !std::ranges::contains(basis_vector, ev->first)) {
+                        solution = Solution::UNOPTIMIZED;
                         break;
                     }
                     ++ev;
                 }
-                solution = Solution::UNOPTIMIZED;
             } else {
                 ev = std::next(coefficient_matrix.begin(), std::ranges::min_element(zj_cj, {}, extract_M_coefficient) - zj_cj.begin() + 1); // B
             }
@@ -350,6 +243,73 @@ public:
                 coefficient_matrix.erase(basis_vector[lv]);
                 cost.erase(basis_vector[lv]);
             }
+            const std::pair pivot = {ev->first, lv};
+            std::map<Variable, std::vector<Fraction>> new_coefficient_matrix = coefficient_matrix;
+            basis_vector.erase(basis_vector.begin() + lv);
+            basis_vector.insert(basis_vector.begin() + lv, ev->first);
+
+            for (int i = 0; i < size; i++) {
+                new_coefficient_matrix[basis_vector[i]] = unit_matrix[i];
+            }
+            for (const Variable& variable : coefficient_matrix | std::views::keys |
+                     std::views::filter([this](const Variable& element) -> bool { return !std::ranges::contains(basis_vector, element); })) {
+                for (int i = 0; i < size; i++) {
+                    if (i == pivot.second) {
+                        new_coefficient_matrix[variable][i] /= coefficient_matrix[pivot.first][pivot.second];
+                    } else {
+                        new_coefficient_matrix[variable][i] = (coefficient_matrix[variable][i] * coefficient_matrix[pivot.first][pivot.second] -
+                                                               coefficient_matrix[variable][pivot.second] * coefficient_matrix[pivot.first][i]) /
+                            coefficient_matrix[pivot.first][pivot.second];
+                    }
+                }
+            }
+            coefficient_matrix = std::move(new_coefficient_matrix);
+        }
+    }
+
+    Solution optimize_dual_simplex(const bool verbose = false) {
+        solution = Solution::UNBOUNDED;
+        const int size = coefficient_matrix[LPP::B].size();
+        Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
+
+        while (true) {
+            zj_cj.clear();
+
+            for (const Variable& variable : cost | std::views::keys) {
+                Polynomial polynomial;
+
+                for (int i = 0; i < size; i++) {
+                    polynomial += cost[basis_vector[i]] * coefficient_matrix[variable][i];
+                }
+                zj_cj.push_back(polynomial - cost[variable]);
+            }
+            if (std::ranges::all_of(zj_cj, [](const Polynomial& polynomial) -> bool { return static_cast<Fraction>(polynomial) >= 0; }) &&
+                std::ranges::all_of(coefficient_matrix[LPP::B], [](const Fraction& fraction) -> bool { return fraction >= 0; })) {
+                return solution = Solution::OPTIMIZED;
+            }
+            if (verbose) {
+                std::cout << *this;
+            }
+            const int lv = std::ranges::min_element(coefficient_matrix[LPP::B]) - coefficient_matrix[LPP::B].begin(), zj_cj_size = zj_cj.size();
+            const auto begin = std::next(coefficient_matrix.begin()); // B
+
+            auto ev = std::ranges::max_element(
+                coefficient_matrix | std::views::drop(1),
+                [&](const std::pair<Variable, std::vector<Fraction>>& lhs, const std::pair<Variable, std::vector<Fraction>>& rhs) -> bool {
+                    const Fraction &lhs_value = lhs.second[lv], rhs_value = rhs.second[lv];
+
+                    if (lhs_value >= 0) {
+                        return true;
+                    }
+                    if (rhs_value >= 0) {
+                        return false;
+                    }
+                    const int lhs_idx = std::distance(begin, coefficient_matrix.find(lhs.first));
+                    const int rhs_idx = std::distance(begin, coefficient_matrix.find(rhs.first));
+                    return static_cast<Fraction>(zj_cj[lhs_idx]) / lhs_value < static_cast<Fraction>(zj_cj[rhs_idx]) / rhs_value;
+                });
+            assert(ev != coefficient_matrix.end());
+
             const std::pair pivot = {ev->first, lv};
             std::map<Variable, std::vector<Fraction>> new_coefficient_matrix = coefficient_matrix;
             basis_vector.erase(basis_vector.begin() + lv);
@@ -443,7 +403,7 @@ inline lpp::LPP lpp::LPP::dual(const std::string& basis) const {
     for (Inequation& constraint : canonical.constraints) {
         if (type == Optimization::MAXIMIZE && constraint.opr == RelationalOperator::GE ||
             type == Optimization::MINIMIZE && constraint.opr == RelationalOperator::LE) {
-            constraint *= -1;
+            constraint = constraint.invert();
         }
     }
     const int objective_size = canonical.objective.expression.size(), constraints_size = canonical.constraints.size();
@@ -467,9 +427,11 @@ inline lpp::LPP lpp::LPP::dual(const std::string& basis) const {
     auto itr = computational_table.cost.begin();
 
     for (int i = 0; i < objective_size; i++) {
-        res.constraints[i].opr = static_cast<Fraction>(canonical.restrictions[i].rhs) == inf ? RelationalOperator::EQ
-            : res.type == Optimization::MAXIMIZE                                             ? RelationalOperator::LE
-                                                                                             : RelationalOperator::GE;
+        res.constraints[i].opr = canonical.restrictions[i].lhs.is_fraction() && static_cast<Fraction>(canonical.restrictions[i].lhs) == inf ||
+                canonical.restrictions[i].rhs.is_fraction() && static_cast<Fraction>(canonical.restrictions[i].rhs) == inf
+            ? RelationalOperator::EQ
+            : res.type == Optimization::MAXIMIZE ? RelationalOperator::LE
+                                                 : RelationalOperator::GE;
         res.constraints[i].rhs = itr->second;
         ++itr;
     }
@@ -537,4 +499,43 @@ inline std::variant<std::vector<std::map<algebra::Variable, algebra::Fraction>>,
     }
     return res;
     std::unreachable();
+}
+
+inline std::vector<std::map<algebra::Variable, algebra::Fraction>> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) {
+    std::map<Variable, std::vector<Fraction>> variables;
+
+    for (const Equation& equation : equations) {
+        for (const Variable& variable : equation.lhs.expression) {
+            variables[variable.basis()].push_back(variable.coefficient);
+        }
+        variables[LPP::B].push_back(static_cast<Fraction>(equation.rhs));
+    }
+    const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, &std::vector<Fraction>::size).size();
+    const int row = variables.size() - 1, n = std::max(row, col), k = std::min(row, col);
+    const std::vector<std::vector<int>> combinations = detail::generate_combination(n, k);
+    std::vector<std::map<Variable, Fraction>> result;
+
+    for (const std::vector<int>& combination : combinations) {
+        Matrix<Fraction> B(k, k), C(k, 1);
+        std::vector<Variable> X;
+        X.reserve(k);
+
+        for (int i = 0; i < k; i++) {
+            const auto itr = std::next(variables.begin(), combination[i] + 1); // B
+
+            for (int j = 0; j < k; j++) {
+                B[j, i] = itr->second[j];
+            }
+            X.push_back(itr->first);
+            C[i, 0] = variables[LPP::B][i];
+        }
+        Matrix<Fraction> res = B.inverse() * C;
+        std::map<Variable, Fraction> element;
+
+        for (int i = 0; i < k; i++) {
+            element[X[i]] = res[i, 0];
+        }
+        result.push_back(element);
+    }
+    return result;
 }

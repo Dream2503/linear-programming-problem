@@ -5,49 +5,58 @@
 #include <iostream>
 #include <numeric>
 #include <ranges>
+#include <utility>
 #include <vector>
 
 namespace algebra {
     enum class RelationalOperator { LT, LE, GT, GE, EQ };
 
     class Fraction;
+    std::ostream& operator<<(std::ostream&, const Fraction&);
+
     class Variable;
+    std::ostream& operator<<(std::ostream&, const Variable&);
+
     class Polynomial;
+    std::ostream& operator<<(std::ostream&, const Polynomial&);
+
     class Inequation;
     class Equation;
+    std::ostream& operator<<(std::ostream&, const Inequation&);
+
     class Interval;
+    std::ostream& operator<<(std::ostream&, const Interval&);
 
     template <typename>
     class Matrix;
 
     namespace detail {
         RelationalOperator invert_relational_operator(RelationalOperator);
-    }
-
-    inline std::ostream& operator<<(std::ostream& out, const RelationalOperator opr) {
-        switch (opr) {
-        case RelationalOperator::LT:
-            out << '<';
-            break;
-
-        case RelationalOperator::LE:
-            out << "<=";
-            break;
-
-        case RelationalOperator::GT:
-            out << '>';
-            break;
-
-        case RelationalOperator::GE:
-            out << ">=";
-            break;
-
-        case RelationalOperator::EQ:
-            out << '=';
-        }
-        return out;
-    }
+        bool evaluate_relational_operator(const Fraction&, RelationalOperator, const Fraction&);
+    } // namespace detail
 } // namespace algebra
+
+namespace std {
+    inline string to_string(const algebra::RelationalOperator relational_operator) {
+        switch (relational_operator) {
+        case algebra::RelationalOperator::LT:
+            return "<";
+
+        case algebra::RelationalOperator::LE:
+            return "<=";
+
+        case algebra::RelationalOperator::GT:
+            return ">";
+
+        case algebra::RelationalOperator::GE:
+            return ">=";
+
+        case algebra::RelationalOperator::EQ:
+            return "=";
+        }
+        std::unreachable();
+    }
+} // namespace std
 
 #include "src/detail.hpp"
 #include "src/fraction.hpp"

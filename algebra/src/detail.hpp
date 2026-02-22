@@ -1,4 +1,5 @@
 #pragma once
+#include "fraction.hpp"
 
 namespace algebra::detail {
     inline RelationalOperator invert_relational_operator(const RelationalOperator opr) {
@@ -17,6 +18,25 @@ namespace algebra::detail {
 
         default:
             return RelationalOperator::EQ;
+        }
+    }
+
+    inline bool evaluate_relational_operator(const Fraction& lhs, const RelationalOperator opr, const Fraction& rhs) {
+        switch (opr) {
+        case RelationalOperator::LT:
+            return lhs < rhs;
+
+        case RelationalOperator::LE:
+            return lhs <= rhs;
+
+        case RelationalOperator::GT:
+            return lhs > rhs;
+
+        case RelationalOperator::GE:
+            return lhs >= rhs;
+
+        default:
+            return lhs == rhs;
         }
     }
 } // namespace algebra::detail

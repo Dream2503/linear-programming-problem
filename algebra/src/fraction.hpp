@@ -46,10 +46,7 @@ public:
         return fraction;
     }
 
-    constexpr Fraction& operator-=(const Fraction& value) {
-        *this += -value;
-        return *this;
-    }
+    constexpr Fraction& operator-=(const Fraction& value) { return *this += -value; }
 
     constexpr Fraction operator-(const Fraction& value) const {
         Fraction fraction = *this;
@@ -85,8 +82,7 @@ public:
 
     constexpr Fraction& operator^=(const Fraction& value) {
         const double exponent = static_cast<double>(value);
-        *this = Fraction(std::pow(numerator, exponent)) / Fraction(std::pow(denominator, exponent));
-        return *this;
+        return *this = Fraction(std::pow(numerator, exponent)) / Fraction(std::pow(denominator, exponent));
     }
 
     constexpr Fraction operator^(const Fraction& value) const {
@@ -96,7 +92,7 @@ public:
     }
 
     constexpr std::strong_ordering operator<=>(const Fraction& value) const {
-        return numerator * value.denominator <=> value.numerator * denominator;
+        return static_cast<int64_t>(numerator) * value.denominator <=> static_cast<int64_t>(value.numerator) * denominator;
     }
 
     constexpr std::partial_ordering operator<=>(const double value) const { return static_cast<double>(*this) <=> value; }
@@ -106,25 +102,33 @@ public:
     constexpr bool operator==(const double value) const { return static_cast<double>(*this) == value; }
 
     constexpr explicit operator double() const { return static_cast<double>(numerator) / denominator; }
-
-    friend std::ostream& operator<<(std::ostream& out, const Fraction& fraction) {
-        if (fraction.numerator == INT32_MAX && fraction.denominator == 1) {
-            return out << "inf";
-        }
-        out << fraction.numerator;
-
-        if (fraction.denominator != 1) {
-            out << '/' << fraction.denominator;
-        }
-        return out;
-    }
 };
 
 inline static constexpr algebra::Fraction inf = INT32_MAX;
 
 namespace std {
     inline algebra::Fraction abs(algebra::Fraction fraction) {
-        fraction.numerator = std::abs(fraction.numerator);
+        fraction.numerator = abs(fraction.numerator);
         return fraction;
     }
+
+    inline string to_string(const algebra::Fraction& fraction) {
+        if (fraction == inf) {
+            return "inf";
+        }
+        if (fraction == -inf) {
+            return "-inf";
+        }
+        std::string res = std::to_string(fraction.numerator);
+
+        if (fraction.denominator != 1) {
+            res.push_back('/');
+            res.append(to_string(fraction.denominator));
+        }
+        return res;
+    }
 } // namespace std
+
+using namespace std;
+
+inline std::ostream& algebra::operator<<(std::ostream& out, const Fraction& fraction) { return out << to_string(fraction); }
