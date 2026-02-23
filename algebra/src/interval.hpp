@@ -160,6 +160,7 @@ namespace std {
         string res = to_string(interval.lhs);
         res.push_back(' ');
         res.append(to_string(interval.opr1)).push_back(' ');
+        res.append(to_string(interval.mid)).push_back(' ');
         res.append(to_string(interval.opr2)).push_back(' ');
         return res.append(to_string(interval.rhs));
     }

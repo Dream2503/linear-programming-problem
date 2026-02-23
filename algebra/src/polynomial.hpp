@@ -145,6 +145,10 @@ inline algebra::Polynomial operator-(const algebra::Variable& lhs, const algebra
 
 inline algebra::Polynomial operator-(const algebra::Fraction& lhs, const algebra::Variable& rhs) { return -rhs + lhs; }
 
+inline algebra::Polynomial operator+(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs + lhs; }
+
+inline algebra::Polynomial operator-(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return -rhs + lhs; }
+
 inline algebra::Polynomial operator*(const algebra::Fraction& lhs, const algebra::Polynomial& rhs) { return rhs * lhs; }
 
 inline algebra::Polynomial operator*(const algebra::Variable& lhs, const algebra::Polynomial& rhs) { return rhs * lhs; }

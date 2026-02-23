@@ -17,6 +17,8 @@ class algebra::Fraction {
         }
     }
 
+    constexpr bool infinity() const;
+
 public:
     int numerator, denominator;
 
@@ -34,9 +36,13 @@ public:
     constexpr Fraction operator-() const { return Fraction(-numerator, denominator); }
 
     constexpr Fraction& operator+=(const Fraction& value) {
-        numerator = numerator * value.denominator + value.numerator * denominator;
-        denominator *= value.denominator;
-        simplify();
+        if (value.infinity()) {
+            *this = value;
+        } else if (!infinity()) {
+            numerator = numerator * value.denominator + value.numerator * denominator;
+            denominator *= value.denominator;
+            simplify();
+        }
         return *this;
     }
 
@@ -55,9 +61,13 @@ public:
     }
 
     constexpr Fraction& operator*=(const Fraction& value) {
-        numerator *= value.numerator;
-        denominator *= value.denominator;
-        simplify();
+        if (value.infinity()) {
+            *this = value;
+        } else if (!infinity()) {
+            numerator *= value.numerator;
+            denominator *= value.denominator;
+            simplify();
+        }
         return *this;
     }
 
@@ -68,9 +78,13 @@ public:
     }
 
     constexpr Fraction& operator/=(const Fraction& value) {
-        numerator *= value.denominator;
-        denominator *= value.numerator;
-        simplify();
+        if (value.infinity()) {
+            *this = value;
+        } else if (!infinity()) {
+            numerator *= value.denominator;
+            denominator *= value.numerator;
+            simplify();
+        }
         return *this;
     }
 
@@ -81,8 +95,13 @@ public:
     }
 
     constexpr Fraction& operator^=(const Fraction& value) {
-        const double exponent = static_cast<double>(value);
-        return *this = Fraction(std::pow(numerator, exponent)) / Fraction(std::pow(denominator, exponent));
+        if (value.infinity()) {
+            *this = value;
+        } else if (!infinity()) {
+            const double exponent = static_cast<double>(value);
+            *this = Fraction(std::pow(numerator, exponent)) / Fraction(std::pow(denominator, exponent));
+        }
+        return *this;
     }
 
     constexpr Fraction operator^(const Fraction& value) const {
@@ -112,6 +131,10 @@ namespace std {
         return fraction;
     }
 
+    inline algebra::Fraction& max(algebra::Fraction& lhs, algebra::Fraction& rhs) { return lhs < rhs ? rhs : lhs; }
+
+    inline algebra::Fraction& min(algebra::Fraction& lhs, algebra::Fraction& rhs) { return lhs <= rhs ? lhs : rhs; }
+
     inline string to_string(const algebra::Fraction& fraction) {
         if (fraction == inf) {
             return "inf";
@@ -129,6 +152,6 @@ namespace std {
     }
 } // namespace std
 
-using namespace std;
+constexpr bool algebra::Fraction::infinity() const { return std::abs(*this) == inf; }
 
-inline std::ostream& algebra::operator<<(std::ostream& out, const Fraction& fraction) { return out << to_string(fraction); }
+inline std::ostream& algebra::operator<<(std::ostream& out, const Fraction& fraction) { return out << std::to_string(fraction); }

@@ -22,3 +22,4 @@ namespace lpp {
 
 #include "detail.hpp"
 #include "src/lpp.hpp"
+#include "src/computation_table.hpp"

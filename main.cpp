@@ -2,10 +2,10 @@
 
 using namespace lpp;
 
-void test(LPP&& lpp, const std::string& method = "simplex") {
+void test(LPP&& lpp, const std::string& method = "simplex", Variable var = Variable()) {
     if (method == "simplex" || method == "dual") {
         std::cout << lpp;
-        const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = lpp.optimize(method, true);
+        const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = lpp.optimize(method, true).get_solutions(method, true);
 
         if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
             for (const std::map<Variable, Fraction>& i : *ans) {
@@ -17,6 +17,24 @@ void test(LPP&& lpp, const std::string& method = "simplex") {
         } else {
             std::cout << std::get<std::string>(res);
         }
+    } else if (method.starts_with("Var")) {
+        std::cout << lpp;
+        lpp = lpp.standardize();
+        ComputationalTable computational_table(lpp);
+        computational_table.optimize_simplex(true);
+        std::cout << computational_table;
+
+        for (const Interval& interval : method.ends_with('C') ? computational_table.variation_C() : computational_table.variation_B()) {
+            std::cout << interval << std::endl;
+        }
+    } else if (method.ends_with("add")) {
+        std::cout << lpp;
+        lpp = lpp.standardize();
+        ComputationalTable computational_table(lpp);
+        computational_table.optimize_simplex(true);
+        std::cout << "BEFORE:" << std::endl << computational_table;
+        // computational_table.add_variable(var);
+        std::cout << "AFTER:" << std::endl << computational_table;
     } else {
         std::cout << lpp.dual(method);
     }
@@ -171,6 +189,7 @@ int main() {
                  x + y == 3,
              },
              {x >= 0, y >= 0}));
+    // Dual
     test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
              {
                  4 * x - 3 * y <= 10,
@@ -217,6 +236,7 @@ int main() {
              },
              {x >= 0, y >= 0}),
          "w");
+    // Dual Simplex
     test(LPP(Optimization::MAXIMIZE, -5 * x - 6 * y,
              {
                  x + y >= 2,
@@ -231,11 +251,72 @@ int main() {
              },
              {x1 >= 0, x2 >= 0, x3 >= 0}),
          "dual");
+    // Alternate Optimal Solution
     test(LPP(Optimization::MAXIMIZE, 2 * x + 4 * y,
              {
                  x + 2 * y <= 5,
                  x + y <= 4,
              },
              {x >= 0, y >= 0}));
+    test(LPP(Optimization::MAXIMIZE, -20 * x - 30 * y,
+             {
+                 2 * x + 3 * y >= 120,
+                 x + y >= 40,
+                 2 * x + 3 * y / 2 >= 90,
+             },
+             {x >= 0, y >= 0}));
+    // Variation in C
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 5 * y,
+             {
+                 x + y <= 1,
+                 2 * x + 3 * y <= 1,
+             },
+             {x >= 0, y >= 0}),
+         "Var C");
+    test(LPP(Optimization::MAXIMIZE, 15 * x + 45 * y,
+             {
+                 y <= 50,
+                 x + 16 * y <= 240,
+                 5 * x + 2 * y <= 162,
+             },
+             {x >= 0, y >= 0}),
+         "Var C");
+    test(LPP(Optimization::MAXIMIZE, x1 + x2 + 3 * x3,
+             {
+                 3 * x1 + 2 * x2 + x3 <= 3,
+                 2 * x1 + x2 + 2 * x3 <= 2,
+             },
+             {x1 >= 0, x2 >= 0, x3 >= 0}),
+         "Var C");
+    // Variation in B
+    test(LPP(Optimization::MAXIMIZE, -x1 + 2 * x2 - x3,
+             {
+                 3 * x1 + x2 - x3 <= 10,
+                 -x1 + 4 * x2 + x3 >= 6,
+                 x2 + x3 <= 4,
+             },
+             {x1 >= 0, x2 >= 0, x3 >= 0}),
+         "Var B");
+    test(LPP(Optimization::MAXIMIZE, 2 * x + y,
+             {
+                 3 * x + 5 * y <= 15,
+                 6 * x + 2 * y <= 24,
+             },
+             {x >= 0, y >= 0}),
+         "Var B");
+    test(LPP(Optimization::MAXIMIZE, 15 * x + 10 * y,
+             {
+                 4 * x + 6 * y <= 360,
+                 3 * x <= 180,
+                 5 * y <= 200,
+             },
+             {x >= 0, y >= 0}));
+    // Addition of new variable
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 5 * y,
+             {
+                 x <= 4,
+                 3 * x + 2 * y <= 18,
+             },
+             {x >= 0, y >= 0}), "Var add");
     return 0;
 }
