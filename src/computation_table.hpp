@@ -11,7 +11,7 @@ class lpp::ComputationalTable {
     }
 
 public:
-    const LPP lpp;
+    LPP lpp;
     Solution solution;
     std::vector<Variable> basis_vector;
     std::map<Variable, Variable> cost;
@@ -58,6 +58,10 @@ public:
             }
         }
     }
+
+    ComputationalTable(const std::map<Variable, Variable>& cost, const std::vector<Variable>& basis_vector,
+                       const std::map<Variable, std::vector<Fraction>>& coefficient_matrix, const Solution solution) :
+        lpp(), solution(solution), basis_vector(basis_vector), cost(cost), coefficient_matrix(coefficient_matrix) {}
 
     std::variant<std::vector<std::map<Variable, Fraction>>, std::string> get_solutions(const std::string& method = "simplex",
                                                                                        const bool verbose = false) {
@@ -202,9 +206,14 @@ public:
             if (unbounded || mr[lv] == inf) {
                 return solution = Solution::UNBOUNDED;
             }
-            if (basis_vector[lv].variables[0].name[0] == 'A') {
+            if (cost[basis_vector[lv]].variables == LPP::M.variables) {
                 coefficient_matrix.erase(basis_vector[lv]);
                 cost.erase(basis_vector[lv]);
+                auto itr = std::ranges::find(lpp.objective.expression, basis_vector[lv], &Variable::basis);
+
+                if (itr != lpp.objective.expression.end()) {
+                    lpp.objective.expression.erase(itr);
+                }
             }
             const std::pair pivot = {ev->first, lv};
             std::map<Variable, std::vector<Fraction>> new_coefficient_matrix = coefficient_matrix;
@@ -359,7 +368,39 @@ public:
         return res;
     }
 
-    void add_variable(const Variable& variable);
+    void add_variable(const Variable& variable, const Matrix<Fraction>& coefficients) {
+        int i = 0;
+        const int size = basis_vector.size();
+        Matrix<Fraction> res(size, size);
+        lpp.objective += variable;
+
+        for (const auto& [name, fractions] :
+             coefficient_matrix | std::views::filter([](const std::pair<Variable, std::vector<Fraction>>& element) -> bool {
+                 return element.first.variables[0].name[0] == 's';
+             })) {
+            for (int j = 0; j < size; j++) {
+                res[i, j] = fractions[j];
+            }
+            i++;
+        }
+        res = coefficients * res;
+        coefficient_matrix[variable.basis()] = res[0];
+        cost[variable.basis()] = variable.coefficient;
+        solution = Solution::UNOPTIMIZED;
+    }
+
+    void remove_variable(const Variable& variable) {
+        if (std::ranges::contains(basis_vector, variable)) {
+            cost[variable.basis()] = -LPP::M;
+            solution = Solution::UNOPTIMIZED;
+        } else {
+            const int idx = std::ranges::distance(cost.begin(), cost.find(variable));
+            lpp.objective -= cost[variable] * variable;
+            zj_cj.erase(zj_cj.begin() + idx);
+            cost.erase(variable);
+            coefficient_matrix.erase(variable);
+        }
+    }
 
     friend std::ostream& operator<<(std::ostream& out, const ComputationalTable& computational_table) {
         static constexpr int TAB_SIZE = 11;

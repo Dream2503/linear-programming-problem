@@ -2,7 +2,7 @@
 
 using namespace lpp;
 
-void test(LPP&& lpp, const std::string& method = "simplex", Variable var = Variable()) {
+void test(LPP&& lpp, const std::string& method = "simplex", const Variable& var = Variable(), const Matrix<Fraction>& coefficients = {}) {
     if (method == "simplex" || method == "dual") {
         std::cout << lpp;
         const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = lpp.optimize(method, true).get_solutions(method, true);
@@ -24,17 +24,32 @@ void test(LPP&& lpp, const std::string& method = "simplex", Variable var = Varia
         computational_table.optimize_simplex(true);
         std::cout << computational_table;
 
-        for (const Interval& interval : method.ends_with('C') ? computational_table.variation_C() : computational_table.variation_B()) {
-            std::cout << interval << std::endl;
+        if (method.ends_with("add") || method.ends_with("remove")) {
+            std::cout << "BEFORE:" << std::endl << computational_table;
+            if (method.ends_with("add")) {
+                computational_table.add_variable(var, coefficients);
+            } else {
+                computational_table.remove_variable(var);
+            }
+            std::cout << "AFTER:" << std::endl << computational_table;
+            computational_table.optimize_simplex(true);
+            const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = computational_table.get_solutions("simplex", true);
+
+            if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
+                for (const std::map<Variable, Fraction>& i : *ans) {
+                    for (const auto& [variable, fraction] : i) {
+                        std::cout << variable << '=' << fraction << " ";
+                    }
+                    std::cout << std::endl;
+                }
+            } else {
+                std::cout << std::get<std::string>(res);
+            }
+        } else {
+            for (const Interval& interval : method.ends_with('C') ? computational_table.variation_C() : computational_table.variation_B()) {
+                std::cout << interval << std::endl;
+            }
         }
-    } else if (method.ends_with("add")) {
-        std::cout << lpp;
-        lpp = lpp.standardize();
-        ComputationalTable computational_table(lpp);
-        computational_table.optimize_simplex(true);
-        std::cout << "BEFORE:" << std::endl << computational_table;
-        // computational_table.add_variable(var);
-        std::cout << "AFTER:" << std::endl << computational_table;
     } else {
         std::cout << lpp.dual(method);
     }
@@ -52,7 +67,7 @@ void test(std::vector<std::map<Variable, Fraction>>&& res) {
 }
 
 int main() {
-    const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3");
+    const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3"), x4("x4"), x5("x5"), s1("s1"), s2("s2"), s3("s3");
 
     test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
              {
@@ -317,6 +332,25 @@ int main() {
                  x <= 4,
                  3 * x + 2 * y <= 18,
              },
-             {x >= 0, y >= 0}), "Var add");
+             {x >= 0, y >= 0}),
+         "Var add", 7 * x1, {1, 2});
+    // Deletion of a variable
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 5 * y,
+             {
+                 x <= 4,
+                 3 * x + 2 * y <= 18,
+             },
+             {x >= 0, y >= 0}),
+         "Var remove", x);
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 5 * y,
+             {
+                 x <= 4,
+                 3 * x + 2 * y <= 18,
+             },
+             {x >= 0, y >= 0}),
+         "Var remove", y);
+    // ComputationalTable table(std::map<Variable, Variable>{{x1, 2}, {x2, 4}, {x3, 1}, {x4, 3}, {x5, 2}, {s1, 0}, {s2, 0}, {s3, 0}},
+    //     {x1, x2, x3},
+    //     {{}});
     return 0;
 }
