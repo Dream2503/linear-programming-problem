@@ -15,6 +15,10 @@ public:
 
     LPP() = default;
 
+    LPP(const Optimization type, const Polynomial& objective, const std::vector<Inequation>& constraints,
+        const std::vector<Inequation>& restrictions) :
+        type(type), objective(objective), constraints(constraints), restrictions(restrictions) {} // need to add variables integrity check
+
     LPP standardize(const bool dual = false) const {
         LPP lpp = *this;
         int i = 1;
@@ -55,11 +59,15 @@ public:
         return lpp;
     }
 
-    LPP(const Optimization type, const Polynomial& objective, const std::vector<Inequation>& constraints,
-        const std::vector<Inequation>& restrictions) :
-        type(type), objective(objective), constraints(constraints), restrictions(restrictions) {} // need to add variables integrity check
+    void graphical_optimize() {
+        std::vector<Polynomial> res;
+        Graph graph;
+        graph.source_path = "/home/dream/github/linear-programming-problem/linear-algebra/algebra/utils/graph.py";
+        std::cout << *this;
+        graph.plot(constraints);
+    }
 
-    ComputationalTable optimize(const std::string& = "simplex", bool = false, std::ostream& = std::cout) const;
+    ComputationalTable optimize(const std::string& = "simplex") const;
 
     LPP dual(const std::string& = "w") const;
 

@@ -1,25 +1,24 @@
 #pragma once
 #include <iomanip>
 #include <map>
-#include <utility>
-#include "algebra/algebra.hpp"
+#include "linear-algebra/linalg.hpp"
 
 namespace lpp {
     using namespace algebra;
+    using linalg::Matrix;
+
+    inline struct FormatSettings {
+        bool verbose = false;
+        std::ostream* out = &std::cout;
+    } GLOBAL_FORMATTING;
 
     enum class Optimization : bool { MINIMIZE, MAXIMIZE };
     enum class Solution : uint8_t { UNOPTIMIZED, OPTIMIZED, INFEASIBLE, UNBOUNDED, ALTERNATE };
-
     class LPP;
     class ComputationalTable;
 
     std::vector<std::map<Variable, Fraction>> basic_feasible_solutions(const std::vector<Equation>&);
-
-    namespace detail {
-        std::vector<std::vector<int>> generate_combinations(int, int);
-    } // namespace detail
 } // namespace lpp
 
-#include "detail.hpp"
 #include "src/lpp.hpp"
 #include "src/computation_table.hpp"

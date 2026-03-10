@@ -79,9 +79,8 @@ public:
         compute_zj_cj();
     }
 
-    std::variant<std::vector<std::map<Variable, Fraction>>, std::string> get_solutions(const std::string& method = "simplex",
-                                                                                       const bool verbose = false, std::ostream& out = std::cout) {
-        auto add_solution = [this, verbose, &out]() -> std::map<Variable, Fraction> {
+    std::variant<std::vector<std::map<Variable, Fraction>>, std::string> get_solutions(const std::string& method = "simplex") {
+        auto add_solution = [this]() -> std::map<Variable, Fraction> {
             std::map<Variable, Fraction> res;
             const int size = basis_vector.size();
 
@@ -93,15 +92,15 @@ public:
             }
             res[LPP::Z] *= lpp.type == Optimization::MINIMIZE ? -1 : 1;
 
-            if (verbose) {
-                out << *this;
+            if (GLOBAL_FORMATTING.verbose) {
+                *GLOBAL_FORMATTING.out << *this;
             }
             return res;
         };
         std::vector<std::map<Variable, Fraction>> res;
 
         while (true) {
-            solution = method == "simplex" ? optimize_simplex(verbose, out) : optimize_dual_simplex(verbose, out);
+            solution = method == "simplex" ? optimize_simplex() : optimize_dual_simplex();
 
             switch (solution) {
             case Solution::OPTIMIZED:
@@ -134,7 +133,7 @@ public:
         std::unreachable();
     }
 
-    Solution optimize_simplex(const bool verbose = false, std::ostream& out = std::cout) {
+    Solution optimize_simplex() {
         if (solution != Solution::UNOPTIMIZED && solution != Solution::ALTERNATE) {
             return solution;
         }
@@ -182,8 +181,8 @@ public:
             for (int i = 0; i < size; i++) {
                 mr.push_back(ev->second[i] <= 0 ? inf : coefficient_matrix[LPP::B][i] / ev->second[i]);
             }
-            if (verbose) {
-                out << *this;
+            if (GLOBAL_FORMATTING.verbose) {
+                *GLOBAL_FORMATTING.out << *this;
             }
             int lv = std::ranges::min_element(mr) - mr.begin();
             bool unbounded = true;
@@ -246,7 +245,7 @@ public:
         }
     }
 
-    Solution optimize_dual_simplex(const bool verbose = false, std::ostream& out = std::cout) {
+    Solution optimize_dual_simplex() {
         solution = Solution::UNBOUNDED;
         const int size = coefficient_matrix[LPP::B].size();
         Matrix<Fraction> unit_matrix = Matrix<Fraction>::make_identity(size);
@@ -258,8 +257,8 @@ public:
                 std::ranges::all_of(coefficient_matrix[LPP::B], [](const Fraction& fraction) -> bool { return fraction >= 0; })) {
                 return solution = Solution::OPTIMIZED;
             }
-            if (verbose) {
-                out << *this;
+            if (GLOBAL_FORMATTING.verbose) {
+                *GLOBAL_FORMATTING.out << *this;
             }
             const int lv = std::ranges::min_element(coefficient_matrix[LPP::B]) - coefficient_matrix[LPP::B].begin();
             const auto begin = std::next(coefficient_matrix.begin()); // B
@@ -406,9 +405,51 @@ public:
         for (const auto& [key, value] : temp) {
             substituent.emplace_back(key.variables[0].name, value);
         }
-        if (!static_cast<bool>(inequation.substitute(substituent))) {
+        if (static_cast<bool>(inequation.substitute(substituent))) {
+            return;
         }
+
+        auto range = coefficient_matrix | std::views::keys |
+            std::views::filter([](const Variable& variable) -> bool { return variable.variables[0].name[0] == 's'; }) |
+            std::views::transform([](const Variable& variable) -> int { return std::stoi(variable.variables[0].name.substr(1)); });
+        const int size = basis_vector.size() + 1;
+        const Variable slack("s" + std::to_string(*std::ranges::max_element(range) + 1));
+        Polynomial transformation;
+        substituent.resize(size);
+        coefficient_matrix[LPP::B].push_back(static_cast<Fraction>(inequation.rhs));
+
+        for (const Variable& variable : inequation.lhs.expression) {
+            coefficient_matrix[variable.basis()].push_back(variable.coefficient);
+
+            if (std::ranges::contains(basis_vector, variable.basis())) {
+                transformation += variable;
+            }
+        }
+        for (Variable& variable : transformation.expression) {
+            const int idx = std::ranges::find(basis_vector, variable.basis()) - basis_vector.begin();
+            const std::string name = "R" + std::to_string(idx + 1);
+            variable = Variable(variable.coefficient, name);
+            substituent[idx] = {name, 0};
+        }
+        for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::values) {
+            if (fractions.size() < size) {
+                fractions.push_back(0);
+            }
+        }
+        basis_vector.push_back(slack);
+        cost.emplace(slack, 0);
+        coefficient_matrix.emplace(slack, std::vector<Fraction>(size, 0));
+        coefficient_matrix[slack].back() = 1;
+
+        for (std::vector<Fraction>& fractions : coefficient_matrix | std::views::values) {
+            for (int i = 0; i < size - 1; i++) {
+                substituent[i].second = fractions[i];
+            }
+            fractions.back() -= static_cast<Fraction>(transformation.substitute(substituent));
+        }
+        solution = Solution::UNOPTIMIZED;
     }
+
 
     friend std::ostream& operator<<(std::ostream& out, const ComputationalTable& computational_table) {
         static constexpr int TAB_SIZE = 13;
@@ -524,12 +565,12 @@ inline lpp::LPP lpp::LPP::dual(const std::string& basis) const {
     return res;
 }
 
-inline lpp::ComputationalTable lpp::LPP::optimize(const std::string& method, const bool verbose, std::ostream& out) const {
+inline lpp::ComputationalTable lpp::LPP::optimize(const std::string& method) const {
     assert(method == "simplex" || method == "dual");
     const LPP lpp = method == "simplex" ? standardize() : canonicalize().standardize(true);
 
-    if (verbose) {
-        out << std::endl << (method == "simplex" ? "Standard" : "Canonical") << " Form: " << std::endl << lpp;
+    if (GLOBAL_FORMATTING.verbose) {
+        *GLOBAL_FORMATTING.out << std::endl << (method == "simplex" ? "Standard" : "Canonical") << " Form: " << std::endl << lpp;
     }
     return ComputationalTable(lpp);
 }

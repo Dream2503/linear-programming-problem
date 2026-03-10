@@ -4,57 +4,51 @@
 using namespace lpp;
 inline static std::ofstream out("output.txt");
 
-void test(LPP&& lpp, const std::string& method = "simplex", const Variable& var = Variable(), const Matrix<Fraction>& coefficients = {}) {
+void print_solutions(const std::variant<std::vector<std::map<Variable, Fraction>>, std::string>& res) {
+    if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
+        for (const auto& solution : *ans) {
+            for (const auto& [variable, fraction] : solution) {
+                out << variable << '=' << fraction << " ";
+            }
+            out << std::endl;
+        }
+    } else {
+        out << std::get<std::string>(res);
+    }
+}
+
+void test(LPP&& lpp, const std::string& method = "simplex", const Variable& var = {}, const Matrix<Fraction>& coefficients = {}) {
     if (method == "simplex" || method == "dual") {
         out << lpp;
-        const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res =
-            lpp.optimize(method, true, out).get_solutions(method, true, out);
-
-        if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
-            for (const std::map<Variable, Fraction>& i : *ans) {
-                for (const auto& [variable, fraction] : i) {
-                    out << variable << '=' << fraction << " ";
-                }
-                out << std::endl;
-            }
-        } else {
-            out << std::get<std::string>(res);
-        }
+        print_solutions(lpp.optimize(method).get_solutions(method));
     } else if (method.starts_with("Var")) {
         out << lpp;
         lpp = lpp.standardize();
-        ComputationalTable computational_table(lpp);
-        computational_table.optimize_simplex(true, out);
-        out << computational_table;
+        ComputationalTable table(lpp);
+        table.optimize_simplex();
+        out << table;
 
         if (method.ends_with("add") || method.ends_with("remove")) {
-            out << "BEFORE:" << std::endl << computational_table;
+            out << "BEFORE:\n" << table;
 
             if (method.ends_with("add")) {
-                computational_table.add_variable(var, coefficients);
+                table.add_variable(var, coefficients);
             } else {
-                computational_table.remove_variable(var);
+                table.remove_variable(var);
             }
-            out << "AFTER:" << std::endl << computational_table;
-            const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = computational_table.get_solutions("simplex", true, out);
-
-            if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
-                for (const std::map<Variable, Fraction>& i : *ans) {
-                    for (const auto& [variable, fraction] : i) {
-                        out << variable << '=' << fraction << " ";
-                    }
-                    out << std::endl;
-                }
-            } else {
-                out << std::get<std::string>(res);
-            }
+            out << "AFTER:\n" << table;
+            print_solutions(table.get_solutions("simplex"));
         } else {
-            for (const Interval& interval : method.ends_with('C') ? computational_table.variation_C() : computational_table.variation_B()) {
+            const auto& intervals = method.ends_with('C') ? table.variation_C() : table.variation_B();
+            for (const Interval& interval : intervals) {
                 out << interval << std::endl;
             }
         }
+    } else if (method == "graphical") {
+        out << lpp;
+        lpp.graphical_optimize();
     } else {
-        out << lpp << std::endl << "Dual:" << std::endl << lpp.dual(method);
+        out << lpp << "\nDual:\n" << lpp.dual(method);
     }
     out << std::string(150, '-') << std::endl;
 }
@@ -63,64 +57,63 @@ void test(std::vector<Equation>&& equations) {
     for (const Equation& equation : equations) {
         out << equation << std::endl;
     }
-    out << std::endl << "Basic Feasible Solutions:" << std::endl;
+    out << "\nBasic Feasible Solutions:\n";
 
-    for (const std::map<Variable, Fraction>& result : basic_feasible_solutions(equations)) {
-        for (const auto& [variable, fraction] : result) {
+    for (const auto& result : basic_feasible_solutions(equations)) {
+        for (const auto& [variable, fraction] : result)
             out << variable << '=' << fraction << ' ';
-        }
         out << std::endl;
     }
     out << std::string(150, '-') << std::endl;
 }
 
-void test(ComputationalTable&& computational_table, const std::string& method = "simplex", const Variable& var = {},
-          const Inequation& constraint = {}, const Matrix<Fraction>& coefficients = {}) {
-    computational_table.optimize_simplex(true, out);
-    out << computational_table;
+void test(ComputationalTable&& table, const std::string& method = "simplex", const Variable& var = {}, const Inequation& constraint = {},
+          const Matrix<Fraction>& coefficients = {}) {
+    table.optimize_simplex();
+    out << table;
 
     if (method.starts_with("Var")) {
         if (method.ends_with("add") || method.ends_with("remove")) {
-            out << "BEFORE:" << std::endl << computational_table;
+            out << "BEFORE:\n" << table;
 
             if (method.ends_with("add")) {
-                computational_table.add_variable(var, coefficients);
+                table.add_variable(var, coefficients);
             } else {
-                computational_table.remove_variable(var);
+                table.remove_variable(var);
             }
-            out << "AFTER:" << std::endl << computational_table;
-            const std::variant<std::vector<std::map<Variable, Fraction>>, std::string> res = computational_table.get_solutions("simplex", true, out);
-
-            if (auto ans = std::get_if<std::vector<std::map<Variable, Fraction>>>(&res)) {
-                for (const std::map<Variable, Fraction>& i : *ans) {
-                    for (const auto& [variable, fraction] : i) {
-                        out << variable << '=' << fraction << " ";
-                    }
-                    out << std::endl;
-                }
-            } else {
-                out << std::get<std::string>(res);
-            }
+            out << "AFTER:\n" << table;
+            print_solutions(table.get_solutions("simplex"));
         } else {
-            for (const Interval& interval : method.ends_with('C') ? computational_table.variation_C() : computational_table.variation_B()) {
+            const auto& intervals = method.ends_with('C') ? table.variation_C() : table.variation_B();
+
+            for (const Interval& interval : intervals) {
                 out << interval << std::endl;
             }
         }
     } else if (method.starts_with("Constraint")) {
-        out << "BEFORE:" << std::endl << computational_table;
+        out << "BEFORE:\n" << table;
 
         if (method.ends_with("add")) {
-            computational_table.add_constraint(constraint);
-        } else {
+            table.add_constraint(constraint);
         }
-        out << "AFTER:" << std::endl << computational_table;
+        out << "AFTER:\n" << table;
+        print_solutions(table.get_solutions("simplex"));
     }
     out << std::string(150, '-') << std::endl;
 }
 
 int main() {
     const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3"), x4("x4"), x5("x5"), s1("s1"), s2("s2"), s3("s3");
+    linalg::GLOBAL_FORMATTING = {true, &out};
+    GLOBAL_FORMATTING = {true, &out};
 
+    // test(LPP(Optimization::MAXIMIZE, 2 * x + 7 * y,
+    //          {
+    //              3 * x + 5 * y <= 15,
+    //              7 * x + 3 * y <= 21,
+    //          },
+    //          {x >= 0, y >= 0}),
+    //      "graphical");
     test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
              {
                  x + y <= 4,
