@@ -1,22 +1,23 @@
 #pragma once
+#include "../linear-algebra/linalg.hpp"
 
-class lpp::LPP {
+class optimization::LPP {
     Optimization type;
-    Polynomial objective;
-    std::vector<Inequation> constraints, restrictions;
+    algebra::Polynomial objective;
+    std::vector<algebra::Inequation> constraints, restrictions;
 
     friend class ComputationalTable;
-    friend std::vector<std::map<Variable, Fraction>> lpp::basic_feasible_solutions(const std::vector<Equation>&);
+    friend std::vector<std::map<algebra::Variable, algebra::Fraction>> optimization::basic_feasible_solutions(const std::vector<algebra::Equation>&);
 
 public:
-    inline static const Variable B{"@"}, M{"M"}, Z{"Z"}; // '@' for ascii arrangement
+    inline static const algebra::Variable B{"@"}, M{"M"}, Z{"Z"}; // '@' for ascii arrangement
 
-    static Inequation unrestrict(const Variable& variable) { return Inequation(variable, {}, inf); }
+    static algebra::Inequation unrestrict(const algebra::Variable& variable) { return algebra::Inequation(variable, {}, algebra::inf); }
 
     LPP() = default;
 
-    LPP(const Optimization type, const Polynomial& objective, const std::vector<Inequation>& constraints,
-        const std::vector<Inequation>& restrictions) :
+    LPP(const Optimization type, const algebra::Polynomial& objective, const std::vector<algebra::Inequation>& constraints,
+        const std::vector<algebra::Inequation>& restrictions) :
         type(type), objective(objective), constraints(constraints), restrictions(restrictions) {} // need to add variables integrity check
 
     LPP standardize(const bool dual = false) const {
@@ -27,13 +28,14 @@ public:
             lpp.objective *= -1;
             lpp.type = Optimization::MAXIMIZE;
         }
-        for (Inequation& constraint : lpp.constraints) {
-            if (dual && constraint.opr == RelationalOperator::GE || !dual && static_cast<Fraction>(constraint.rhs) < 0) {
+        for (algebra::Inequation& constraint : lpp.constraints) {
+            if (dual && constraint.opr == algebra::RelationalOperator::GE || !dual && static_cast<algebra::Fraction>(constraint.rhs) < 0) {
                 constraint = constraint.invert();
             }
-            if (constraint.opr != RelationalOperator::EQ) {
-                Variable variable("s" + std::to_string(i++));
-                constraint = Equation(constraint.lhs + (constraint.opr == RelationalOperator::LE ? variable : -variable), constraint.rhs);
+            if (constraint.opr != algebra::RelationalOperator::EQ) {
+                algebra::Variable variable("s" + std::to_string(i++));
+                constraint =
+                    algebra::Equation(constraint.lhs + (constraint.opr == algebra::RelationalOperator::LE ? variable : -variable), constraint.rhs);
             }
         }
         return lpp;
@@ -42,32 +44,95 @@ public:
     LPP canonicalize() const {
         LPP lpp = *this;
 
-        for (const Inequation& constraint : constraints) {
-            if (constraint.opr == RelationalOperator::EQ) {
-                lpp.constraints.push_back(Inequation(constraint.lhs, RelationalOperator::LE, constraint.rhs));
-                lpp.constraints.push_back(Inequation(constraint.lhs, RelationalOperator::GE, constraint.rhs));
+        for (const algebra::Inequation& constraint : constraints) {
+            if (constraint.opr == algebra::RelationalOperator::EQ) {
+                lpp.constraints.push_back(algebra::Inequation(constraint.lhs, algebra::RelationalOperator::LE, constraint.rhs));
+                lpp.constraints.push_back(algebra::Inequation(constraint.lhs, algebra::RelationalOperator::GE, constraint.rhs));
             }
         }
-        std::erase_if(lpp.constraints, [](const Inequation& inequation) -> bool { return inequation.opr == RelationalOperator::EQ; });
+        std::erase_if(lpp.constraints,
+                      [](const algebra::Inequation& inequation) -> bool { return inequation.opr == algebra::RelationalOperator::EQ; });
 
-        for (Inequation& constraint : lpp.constraints) {
-            if (type == Optimization::MAXIMIZE && constraint.opr == RelationalOperator::GE ||
-                type == Optimization::MINIMIZE && constraint.opr == RelationalOperator::LE) {
+        for (algebra::Inequation& constraint : lpp.constraints) {
+            if (type == Optimization::MAXIMIZE && constraint.opr == algebra::RelationalOperator::GE ||
+                type == Optimization::MINIMIZE && constraint.opr == algebra::RelationalOperator::LE) {
                 constraint = constraint.invert();
             }
         }
         return lpp;
     }
 
-    void graphical_optimize() {
-        std::vector<Polynomial> res;
-        Graph graph;
-        graph.source_path = "/home/dream/github/linear-programming-problem/linear-algebra/algebra/utils/graph.py";
-        std::cout << *this;
-        graph.plot(constraints);
+    std::variant<std::vector<std::map<algebra::Variable, algebra::Fraction>>, std::string> graphical_optimize(const std::string& path) const {
+        assert(objective.expression.size() <= 2);
+        const int size = constraints.size();
+        algebra::Point res;
+        algebra::Fraction limit, optimal = type == Optimization::MAXIMIZE ? -algebra::inf : algebra::inf, second_optimal = optimal;
+        algebra::Graph graph;
+        std::vector<algebra::Polynomial> polynomials;
+        std::vector<algebra::Point> points{{0, 0}};
+        const std::vector<std::vector<int>> combinations = algebra::detail::generate_combinations(size, 2);
+        graph.source_path = "/home/dream/github/optimization-technique/linear-algebra/algebra/utils/graph.py";
+        polynomials.reserve(size);
+
+        for (const algebra::Inequation& constraint : constraints) {
+            polynomials.push_back(constraint.lhs / static_cast<algebra::Fraction>(constraint.rhs));
+
+            for (const algebra::Variable& variable : polynomials.back().expression) {
+                if (variable.variables == algebra::Variable("x").variables) {
+                    points.emplace_back(variable.coefficient.reciprocate(), 0);
+                } else if (variable.variables == algebra::Variable("y").variables) {
+                    points.emplace_back(0, variable.coefficient.reciprocate());
+                }
+            }
+        }
+        for (const std::vector<int>& combination : combinations) {
+            std::map<algebra::Variable, algebra::Fraction> solution =
+                linalg::solve_linear_system({algebra::Equation(constraints[combination[0]]), algebra::Equation(constraints[combination[1]])});
+            points.emplace_back(solution[algebra::Variable("x")], solution[algebra::Variable("y")]);
+        }
+        for (const algebra::Point& point : points) {
+            std::vector<std::pair<std::string, algebra::Fraction>> substituent = {{"x", point.x}, {"y", point.y}};
+
+            if (point.x >= 0 && point.y >= 0) {
+                limit = std::max({limit, point.x, point.y});
+            }
+            if (point.x >= 0 && point.y >= 0 &&
+                std::ranges::all_of(std::array{constraints, restrictions} | std::views::join,
+                                    [&substituent](const algebra::Inequation& constraint) -> bool {
+                                        return static_cast<bool>(constraint.substitute(substituent));
+                                    })) {
+                const auto value = static_cast<algebra::Fraction>(objective.substitute(substituent));
+
+                if (type == Optimization::MAXIMIZE && optimal < value || type == Optimization::MINIMIZE && optimal > value) {
+                    second_optimal = optimal;
+                    optimal = value;
+                    res = point;
+                } else if (type == Optimization::MAXIMIZE && second_optimal < value || type == Optimization::MINIMIZE && second_optimal > value) {
+                    second_optimal = value;
+                }
+            }
+        }
+        if (GLOBAL_FORMATTING.verbose) {
+            *GLOBAL_FORMATTING.out << "Critical points: ";
+
+            for (const algebra::Point& point : points) {
+                *GLOBAL_FORMATTING.out << point << ' ';
+            }
+            *GLOBAL_FORMATTING.out << std::endl << std::endl;
+        }
+        if (graph.plot(constraints, points, limit, path) && type == Optimization::MAXIMIZE) {
+            return "Unbounded Solution\n";
+        }
+        if (type == Optimization::MAXIMIZE && optimal == -algebra::inf || type == Optimization::MINIMIZE && optimal == algebra::inf) {
+            return "Infeasible Solution\n";
+        }
+        if (second_optimal == optimal) {
+            return "Infinitely Many Solutions\n";
+        }
+        return std::vector{std::map{std::pair{algebra::Variable("z"), optimal}, {algebra::Variable("x"), res.x}, {algebra::Variable("y"), res.y}}};
     }
 
-    ComputationalTable optimize(const std::string& = "simplex") const;
+    ComputationalTable tabular_optimize(const std::string& = "simplex") const;
 
     LPP dual(const std::string& = "w") const;
 
@@ -76,14 +141,14 @@ public:
         out << (lpp.type == Optimization::MAXIMIZE ? "Maximize" : "Minimize") << '\t' << lpp.objective << std::endl;
         out << "subject to  " << lpp.constraints.front() << std::endl;
 
-        for (const Inequation& constraint : lpp.constraints | std::views::drop(1)) {
+        for (const algebra::Inequation& constraint : lpp.constraints | std::views::drop(1)) {
             out << "            " << constraint << std::endl;
         }
         out << "            ";
 
         for (int i = 0; i < size; i++) {
-            if (lpp.restrictions[i].lhs.is_fraction() && static_cast<Fraction>(lpp.restrictions[i].lhs) == inf ||
-                lpp.restrictions[i].rhs.is_fraction() && static_cast<Fraction>(lpp.restrictions[i].rhs) == inf) {
+            if (lpp.restrictions[i].lhs.is_fraction() && static_cast<algebra::Fraction>(lpp.restrictions[i].lhs) == algebra::inf ||
+                lpp.restrictions[i].rhs.is_fraction() && static_cast<algebra::Fraction>(lpp.restrictions[i].rhs) == algebra::inf) {
                 out << lpp.restrictions[i].lhs << " is unrestricted";
             } else {
                 out << lpp.restrictions[i];
@@ -96,22 +161,23 @@ public:
     }
 };
 
-inline std::vector<std::map<algebra::Variable, algebra::Fraction>> lpp::basic_feasible_solutions(const std::vector<Equation>& equations) {
-    std::map<Variable, std::vector<Fraction>> variables;
+inline std::vector<std::map<algebra::Variable, algebra::Fraction>>
+optimization::basic_feasible_solutions(const std::vector<algebra::Equation>& equations) {
+    std::map<algebra::Variable, std::vector<algebra::Fraction>> variables;
 
-    for (const Equation& equation : equations) {
-        for (const Variable& variable : equation.lhs.expression) {
+    for (const algebra::Equation& equation : equations) {
+        for (const algebra::Variable& variable : equation.lhs.expression) {
             variables[variable.basis()].push_back(variable.coefficient);
         }
-        variables[LPP::B].push_back(static_cast<Fraction>(equation.rhs));
+        variables[LPP::B].push_back(static_cast<algebra::Fraction>(equation.rhs));
     }
-    const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, &std::vector<Fraction>::size).size();
+    const int col = std::ranges::max(variables | std::views::drop(1) | std::views::values, {}, &std::vector<algebra::Fraction>::size).size();
     const int row = variables.size() - 1, n = std::max(row, col), k = std::min(row, col);
-    std::vector<std::map<Variable, Fraction>> result;
+    std::vector<std::map<algebra::Variable, algebra::Fraction>> result;
 
-    for (const std::vector<int>& combination : detail::generate_combinations(n, k)) {
-        Matrix<Fraction> B(k, k), C(k, 1);
-        std::vector<Variable> X;
+    for (const std::vector<int>& combination : algebra::detail::generate_combinations(n, k)) {
+        linalg::Matrix<algebra::Fraction> B(k, k), C(k, 1);
+        std::vector<algebra::Variable> X;
         X.reserve(k);
 
         for (int i = 0; i < k; i++) {
@@ -123,8 +189,8 @@ inline std::vector<std::map<algebra::Variable, algebra::Fraction>> lpp::basic_fe
             X.push_back(itr->first);
             C[i, 0] = variables[LPP::B][i];
         }
-        Matrix<Fraction> res = B.inverse() * C;
-        std::map<Variable, Fraction> element;
+        linalg::Matrix<algebra::Fraction> res = B.inverse() * C;
+        std::map<algebra::Variable, algebra::Fraction> element;
 
         for (int i = 0; i < k; i++) {
             element[X[i]] = res[i, 0];

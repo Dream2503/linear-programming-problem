@@ -1,7 +1,10 @@
 #include <fstream>
-#include "lpp.hpp"
+#include "optimization.hpp"
 
-using namespace lpp;
+using namespace algebra;
+using namespace linalg;
+using namespace optimization;
+
 inline static std::ofstream out("output.txt");
 
 void print_solutions(const std::variant<std::vector<std::map<Variable, Fraction>>, std::string>& res) {
@@ -20,7 +23,7 @@ void print_solutions(const std::variant<std::vector<std::map<Variable, Fraction>
 void test(LPP&& lpp, const std::string& method = "simplex", const Variable& var = {}, const Matrix<Fraction>& coefficients = {}) {
     if (method == "simplex" || method == "dual") {
         out << lpp;
-        print_solutions(lpp.optimize(method).get_solutions(method));
+        print_solutions(lpp.tabular_optimize(method).get_solutions(method));
     } else if (method.starts_with("Var")) {
         out << lpp;
         lpp = lpp.standardize();
@@ -39,14 +42,14 @@ void test(LPP&& lpp, const std::string& method = "simplex", const Variable& var 
             out << "AFTER:\n" << table;
             print_solutions(table.get_solutions("simplex"));
         } else {
-            const auto& intervals = method.ends_with('C') ? table.variation_C() : table.variation_B();
+            const auto& intervals = method.ends_with('C') ? table.cost_variation() : table.RHS_variation();
             for (const Interval& interval : intervals) {
                 out << interval << std::endl;
             }
         }
     } else if (method == "graphical") {
         out << lpp;
-        lpp.graphical_optimize();
+        print_solutions(lpp.graphical_optimize(var.variables.front().name));
     } else {
         out << lpp << "\nDual:\n" << lpp.dual(method);
     }
@@ -84,7 +87,7 @@ void test(ComputationalTable&& table, const std::string& method = "simplex", con
             out << "AFTER:\n" << table;
             print_solutions(table.get_solutions("simplex"));
         } else {
-            const auto& intervals = method.ends_with('C') ? table.variation_C() : table.variation_B();
+            const auto& intervals = method.ends_with('C') ? table.cost_variation() : table.RHS_variation();
 
             for (const Interval& interval : intervals) {
                 out << interval << std::endl;
@@ -105,15 +108,58 @@ void test(ComputationalTable&& table, const std::string& method = "simplex", con
 int main() {
     const Variable x("x"), y("y"), z("z"), x1("x1"), x2("x2"), x3("x3"), x4("x4"), x5("x5"), s1("s1"), s2("s2"), s3("s3");
     linalg::GLOBAL_FORMATTING = {true, &out};
-    GLOBAL_FORMATTING = {true, &out};
+    optimization::GLOBAL_FORMATTING = {true, &out};
 
-    // test(LPP(Optimization::MAXIMIZE, 2 * x + 7 * y,
-    //          {
-    //              3 * x + 5 * y <= 15,
-    //              7 * x + 3 * y <= 21,
-    //          },
-    //          {x >= 0, y >= 0}),
-    //      "graphical");
+    test(LPP(Optimization::MAXIMIZE, 2 * x + 7 * y,
+             {
+                 3 * x + 5 * y <= 15,
+                 7 * x + 3 * y <= 21,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph1.png"));
+    test(LPP(Optimization::MAXIMIZE, 3 * x + 5 * y,
+             {
+                 4 * x + 3 * y <= 12,
+                 5 * x + 4 * y >= 20,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph2.png"));
+    test(LPP(Optimization::MAXIMIZE, x + 2 * y,
+             {
+                 3 * x + 2 * y <= 6,
+                 2 * x + 5 * y >= 10,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph3.png"));
+    test(LPP(Optimization::MINIMIZE, 3 * x - 10 * y,
+             {
+                 5 * x + 2 * y >= 10,
+                 4 * x + 3 * y <= 12,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph4.png"));
+    test(LPP(Optimization::MAXIMIZE, 5 * x + 4 * y,
+             {
+                 2 * x + 5 * y >= 10,
+                 3 * x + 4 * y >= 12,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph5.png"));
+    test(LPP(Optimization::MINIMIZE, 5 * x + 4 * y,
+             {
+                 2 * x + 5 * y >= 10,
+                 3 * x + 4 * y >= 12,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph6.png"));
+    test(LPP(Optimization::MAXIMIZE, 10 * x + 4 * y,
+             {
+                 5 * x + 2 * y <= 100,
+                 3 * x + 2 * y <= 90,
+                 x + 2 * y <= 50,
+             },
+             {x >= 0, y >= 0}),
+         "graphical", Variable("outputs/graph7.png"));
     test(LPP(Optimization::MAXIMIZE, 3 * x + 2 * y,
              {
                  x + y <= 4,

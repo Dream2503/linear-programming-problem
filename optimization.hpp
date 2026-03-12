@@ -3,10 +3,7 @@
 #include <map>
 #include "linear-algebra/linalg.hpp"
 
-namespace lpp {
-    using namespace algebra;
-    using linalg::Matrix;
-
+namespace optimization {
     inline struct FormatSettings {
         bool verbose = false;
         std::ostream* out = &std::cout;
@@ -17,7 +14,7 @@ namespace lpp {
     class LPP;
     class ComputationalTable;
 
-    std::vector<std::map<Variable, Fraction>> basic_feasible_solutions(const std::vector<Equation>&);
+    std::vector<std::map<algebra::Variable, algebra::Fraction>> basic_feasible_solutions(const std::vector<algebra::Equation>&);
 } // namespace lpp
 
 #include "src/lpp.hpp"
