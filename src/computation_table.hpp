@@ -82,7 +82,7 @@ public:
         compute_zj_cj();
     }
 
-    std::variant<std::vector<std::map<algebra::Variable, algebra::Fraction>>, std::string> get_solutions(const std::string& method = "simplex") {
+    std::variant<std::vector<std::map<algebra::Variable, algebra::Fraction>>, Solution> get_solutions(const std::string& method = "simplex") {
         auto add_solution = [this]() -> std::map<algebra::Variable, algebra::Fraction> {
             std::map<algebra::Variable, algebra::Fraction> res;
             const int size = basis_vector.size();
@@ -94,27 +94,28 @@ public:
                 res[LPP::Z] += static_cast<algebra::Fraction>(cost[variable]) * res[variable];
             }
             res[LPP::Z] *= lpp.type == Optimization::MINIMIZE ? -1 : 1;
-
-            if (GLOBAL_FORMATTING.verbose) {
-                *GLOBAL_FORMATTING.out << *this;
-            }
+            GLOBAL_FORMATTING << *this;
             return res;
         };
+        bool loop = true;
         std::vector<std::map<algebra::Variable, algebra::Fraction>> res;
 
-        while (true) {
+        while (loop) {
             solution = method == "simplex" ? optimize_simplex() : optimize_dual_simplex();
 
             switch (solution) {
             case Solution::OPTIMIZED:
                 res.push_back(add_solution());
-                return res;
+                loop = false;
+                break;
 
             case Solution::INFEASIBLE:
-                return "Infeasible Solution\n";
+                GLOBAL_FORMATTING << "Infeasible Solution" << std::endl;
+                return Solution::INFEASIBLE;
 
             case Solution::UNBOUNDED:
-                return "Unbounded Solution\n";
+                GLOBAL_FORMATTING << "Unbounded Solution" << std::endl;
+                return Solution::UNBOUNDED;
 
             case Solution::ALTERNATE:
                 {
@@ -122,9 +123,8 @@ public:
 
                     if (!std::ranges::contains(res, sol)) {
                         res.push_back(sol);
-                    } else {
-                        return res;
                     }
+                    loop = false;
                     break;
                 }
 
@@ -132,8 +132,13 @@ public:
                 std::unreachable();
             }
         }
+        for (const std::map<algebra::Variable, algebra::Fraction>& sol : res) {
+            for (const auto& [variable, fraction] : sol) {
+                GLOBAL_FORMATTING << variable << '=' << fraction << " ";
+            }
+            GLOBAL_FORMATTING << std::endl;
+        }
         return res;
-        std::unreachable();
     }
 
     Solution optimize_simplex() {
@@ -186,11 +191,9 @@ public:
             for (int i = 0; i < size; i++) {
                 mr.push_back(ev->second[i] <= 0 ? algebra::inf : coefficient_matrix[LPP::B][i] / ev->second[i]);
             }
-            if (GLOBAL_FORMATTING.verbose) {
-                *GLOBAL_FORMATTING.out << *this;
-            }
             int lv = std::ranges::min_element(mr) - mr.begin();
-            bool unbounded = true;
+            bool is_unbounded = true;
+            GLOBAL_FORMATTING << *this;
 
             if (!std::ranges::contains(basis_vector, 'A', [](const algebra::Variable& variable) -> char { return variable.variables[0].name[0]; })) {
                 for (int k = 0; k < size && mr[lv] != algebra::inf; k++) {
@@ -207,14 +210,14 @@ public:
                         }
                         lv = std::ranges::min_element(mr) - mr.begin();
                     } else {
-                        unbounded = false;
+                        is_unbounded = false;
                         break;
                     }
                 }
             } else {
-                unbounded = false;
+                is_unbounded = false;
             }
-            if (unbounded || mr[lv] == algebra::inf) {
+            if (is_unbounded || mr[lv] == algebra::inf) {
                 return solution = Solution::UNBOUNDED;
             }
             if (cost[basis_vector[lv]].variables == LPP::M.variables) {
@@ -263,12 +266,8 @@ public:
                 std::ranges::all_of(coefficient_matrix[LPP::B], [](const algebra::Fraction& fraction) -> bool { return fraction >= 0; })) {
                 return solution = Solution::OPTIMIZED;
             }
-            if (GLOBAL_FORMATTING.verbose) {
-                *GLOBAL_FORMATTING.out << *this;
-            }
             const int lv = std::ranges::min_element(coefficient_matrix[LPP::B]) - coefficient_matrix[LPP::B].begin();
             const auto begin = std::next(coefficient_matrix.begin()); // B
-
             auto ev = std::ranges::max_element(coefficient_matrix | std::views::drop(1),
                                                [&](const std::pair<algebra::Variable, std::vector<algebra::Fraction>>& lhs,
                                                    const std::pair<algebra::Variable, std::vector<algebra::Fraction>>& rhs) -> bool {
@@ -286,9 +285,9 @@ public:
                                                        static_cast<algebra::Fraction>(zj_cj[rhs_idx]) / rhs_value;
                                                });
             assert(ev != coefficient_matrix.end());
-
             const std::pair pivot = {ev->first, lv};
             std::map<algebra::Variable, std::vector<algebra::Fraction>> new_coefficient_matrix = coefficient_matrix;
+            GLOBAL_FORMATTING << *this;
             basis_vector.erase(basis_vector.begin() + lv);
             basis_vector.insert(basis_vector.begin() + lv, ev->first);
 
@@ -344,6 +343,9 @@ public:
                               zj_cj[std::distance(coefficient_matrix.begin(), coefficient_matrix.find(variable)) - 1] + value); // B
             }
         }
+        for (const algebra::Interval& interval : res) {
+            GLOBAL_FORMATTING << interval << std::endl;
+        }
         return res;
     }
 
@@ -369,6 +371,9 @@ public:
             res.push_back(max + lpp.constraints[i].rhs < var < min + lpp.constraints[i].rhs);
             i++;
         }
+        for (const algebra::Interval& interval : res) {
+            GLOBAL_FORMATTING << interval << std::endl;
+        }
         return res;
     }
 
@@ -377,6 +382,7 @@ public:
         const int size = basis_vector.size();
         linalg::Matrix<algebra::Fraction> res(size, size);
         lpp.objective += variable;
+        GLOBAL_FORMATTING << *this;
 
         for (const auto& [name, fractions] :
              coefficient_matrix | std::views::filter([](const std::pair<algebra::Variable, std::vector<algebra::Fraction>>& element) -> bool {
@@ -391,9 +397,12 @@ public:
         coefficient_matrix[variable.basis()] = res[0];
         cost[variable.basis()] = variable.coefficient;
         solution = Solution::UNOPTIMIZED;
+        GLOBAL_FORMATTING << *this;
     }
 
     void remove_variable(const algebra::Variable& variable) {
+        GLOBAL_FORMATTING << *this;
+
         if (std::ranges::contains(basis_vector, variable)) {
             cost[variable.basis()] = -LPP::M;
             solution = Solution::UNOPTIMIZED;
@@ -404,6 +413,7 @@ public:
             cost.erase(variable);
             coefficient_matrix.erase(variable);
         }
+        GLOBAL_FORMATTING << *this;
     }
 
     void add_constraint(const algebra::Inequation& inequation) {
@@ -411,6 +421,7 @@ public:
         const std::map<algebra::Variable, algebra::Fraction> temp =
             std::get<std::vector<std::map<algebra::Variable, algebra::Fraction>>>(get_solutions())[0];
         substituent.reserve(cost.size());
+        GLOBAL_FORMATTING << *this;
 
         for (const auto& [key, value] : temp) {
             substituent.emplace_back(key.variables[0].name, value);
@@ -418,7 +429,6 @@ public:
         if (static_cast<bool>(inequation.substitute(substituent))) {
             return;
         }
-
         auto range = coefficient_matrix | std::views::keys |
             std::views::filter([](const algebra::Variable& variable) -> bool { return variable.variables[0].name[0] == 's'; }) |
             std::views::transform([](const algebra::Variable& variable) -> int { return std::stoi(variable.variables[0].name.substr(1)); });
@@ -458,6 +468,7 @@ public:
             fractions.back() -= static_cast<algebra::Fraction>(transformation.substitute(substituent));
         }
         solution = Solution::UNOPTIMIZED;
+        GLOBAL_FORMATTING << *this;
     }
 
     friend std::ostream& operator<<(std::ostream& out, const ComputationalTable& computational_table) {
@@ -530,6 +541,7 @@ public:
 
 inline optimization::LPP optimization::LPP::dual(const std::string& basis) const {
     LPP canonical = *this;
+    GLOBAL_FORMATTING << canonical;
 
     for (algebra::Inequation& constraint : canonical.constraints) {
         if (type == Optimization::MAXIMIZE && constraint.opr == algebra::RelationalOperator::GE ||
@@ -573,15 +585,12 @@ inline optimization::LPP optimization::LPP::dual(const std::string& basis) const
         res.constraints[i].rhs = itr->second;
         ++itr;
     }
+    GLOBAL_FORMATTING << "Dual:" << std::endl << res;
     return res;
 }
 
 inline optimization::ComputationalTable optimization::LPP::tabular_optimize(const std::string& method) const {
     assert(method == "simplex" || method == "dual");
     const LPP lpp = method == "simplex" ? standardize() : canonicalize().standardize(true);
-
-    if (GLOBAL_FORMATTING.verbose) {
-        *GLOBAL_FORMATTING.out << std::endl << (method == "simplex" ? "Standard" : "Canonical") << " Form: " << std::endl << lpp;
-    }
     return ComputationalTable(lpp);
 }

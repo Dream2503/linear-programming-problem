@@ -1,5 +1,4 @@
 #pragma once
-#include "../linear-algebra/linalg.hpp"
 
 class optimization::LPP {
 protected:
@@ -24,6 +23,7 @@ public:
     LPP standardize(const bool dual = false) const {
         LPP lpp = *this;
         int i = 1;
+        GLOBAL_FORMATTING << lpp;
 
         if (lpp.type == Optimization::MINIMIZE) {
             lpp.objective *= -1;
@@ -39,11 +39,13 @@ public:
                     algebra::Equation(constraint.lhs + (constraint.opr == algebra::RelationalOperator::LE ? variable : -variable), constraint.rhs);
             }
         }
+        GLOBAL_FORMATTING << "Standard Form:" << std::endl << lpp;
         return lpp;
     }
 
     LPP canonicalize() const {
         LPP lpp = *this;
+        GLOBAL_FORMATTING << *this;
 
         for (const algebra::Inequation& constraint : constraints) {
             if (constraint.opr == algebra::RelationalOperator::EQ) {
@@ -60,10 +62,11 @@ public:
                 constraint = constraint.invert();
             }
         }
+        GLOBAL_FORMATTING << "Canonical Form:" << std::endl << lpp;
         return lpp;
     }
 
-    std::variant<std::vector<std::map<algebra::Variable, algebra::Fraction>>, std::string> optimize_graphical(const std::string& path) const {
+    std::variant<std::map<algebra::Variable, algebra::Fraction>, Solution> optimize_graphical(const std::string& path) const {
         assert(objective.expression.size() <= 2);
         const int size = constraints.size();
         algebra::Point res;
@@ -74,15 +77,12 @@ public:
         const std::vector<std::vector<int>> combinations = algebra::detail::generate_combinations(size, 2);
         graph.source_path = "/home/dream/github/optimization-technique/linear-algebra/algebra/utils/graph.py";
         polynomials.reserve(size);
+        GLOBAL_FORMATTING << *this;
 
-        if (GLOBAL_FORMATTING.verbose) {
-            *GLOBAL_FORMATTING.out << *this;
-        }
         for (const algebra::Inequation& constraint : constraints) {
             if (static_cast<algebra::Fraction>(constraint.rhs) != 0) {
                 polynomials.push_back(constraint.lhs / static_cast<algebra::Fraction>(constraint.rhs));
             }
-
             for (const algebra::Variable& variable : polynomials.back().expression) {
                 if (variable.variables == algebra::Variable("x").variables) {
                     points.emplace_back(variable.coefficient.reciprocate(), 0);
@@ -121,24 +121,27 @@ public:
                 }
             }
         }
-        if (GLOBAL_FORMATTING.verbose) {
-            *GLOBAL_FORMATTING.out << "Critical points: ";
+        GLOBAL_FORMATTING << "Critical points: ";
 
-            for (const algebra::Point& point : points) {
-                *GLOBAL_FORMATTING.out << point << ' ';
-            }
-            *GLOBAL_FORMATTING.out << std::endl << std::endl;
+        for (const algebra::Point& point : points) {
+            GLOBAL_FORMATTING << point << ' ';
         }
+        GLOBAL_FORMATTING << std::endl;
+
         if (graph.plot(constraints, points, limit, path) && type == Optimization::MAXIMIZE) {
-            return "Unbounded Solution\n";
+            GLOBAL_FORMATTING << "Unbounded Solution" << std::endl;
+            return Solution::UNBOUNDED;
         }
         if (type == Optimization::MAXIMIZE && optimal == -algebra::inf || type == Optimization::MINIMIZE && optimal == algebra::inf) {
-            return "Infeasible Solution\n";
+            GLOBAL_FORMATTING << "Infeasible Solution" << std::endl;
+            return Solution::INFEASIBLE;
         }
         if (second_optimal == optimal) {
-            return "Infinitely Many Solutions\n";
+            GLOBAL_FORMATTING << "Infinitely Many Solutions" << std::endl;
+            return Solution::ALTERNATE;
         }
-        return std::vector{std::map{std::pair{algebra::Variable("z"), optimal}, {algebra::Variable("x"), res.x}, {algebra::Variable("y"), res.y}}};
+        GLOBAL_FORMATTING << Z << '=' << optimal << " x=" << res.x << " y=" << res.y << std::endl;
+        return std::map{std::pair{Z, optimal}, {algebra::Variable("x"), res.x}, {algebra::Variable("y"), res.y}};
     }
 
     ComputationalTable tabular_optimize(const std::string& = "simplex") const;
@@ -175,6 +178,9 @@ optimization::basic_feasible_solutions(const std::vector<algebra::Equation>& equ
     std::map<algebra::Variable, std::vector<algebra::Fraction>> variables;
 
     for (const algebra::Equation& equation : equations) {
+        GLOBAL_FORMATTING << equation << std::endl;
+    }
+    for (const algebra::Equation& equation : equations) {
         for (const algebra::Variable& variable : equation.lhs.expression) {
             variables[variable.basis()].push_back(variable.coefficient);
         }
@@ -205,6 +211,14 @@ optimization::basic_feasible_solutions(const std::vector<algebra::Equation>& equ
             element[X[i]] = res[i, 0];
         }
         result.push_back(element);
+    }
+    GLOBAL_FORMATTING << "Basic Feasible Solutions:" << std::endl;
+
+    for (const auto& res : result) {
+        for (const auto& [variable, fraction] : res) {
+            GLOBAL_FORMATTING << variable << '=' << fraction << ' ';
+        }
+        GLOBAL_FORMATTING << std::endl;
     }
     return result;
 }

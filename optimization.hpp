@@ -1,14 +1,12 @@
 #pragma once
+#include <filesystem>
 #include <iomanip>
 #include <map>
 #include <queue>
 #include "linear-algebra/linalg.hpp"
 
 namespace optimization {
-    inline struct FormatSettings {
-        bool verbose = false;
-        std::ostream* out = &std::cout;
-    } GLOBAL_FORMATTING;
+    inline algebra::FormatSettings GLOBAL_FORMATTING;
 
     enum class Optimization : bool { MINIMIZE, MAXIMIZE };
     enum class Solution : uint8_t { UNOPTIMIZED, OPTIMIZED, INFEASIBLE, UNBOUNDED, ALTERNATE };
@@ -17,7 +15,7 @@ namespace optimization {
     class IPP;
 
     std::vector<std::map<algebra::Variable, algebra::Fraction>> basic_feasible_solutions(const std::vector<algebra::Equation>&);
-} // namespace lpp
+} // namespace optimization
 
 #include "src/lpp.hpp"
 #include "src/computation_table.hpp"
